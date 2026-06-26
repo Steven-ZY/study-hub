@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLA 代码精读 - OpenPI & StarVLA</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;padding:20px}
+.container{max-width:1100px;margin:0 auto}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;text-align:center}
+h2{color:var(--accent);margin:40px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:24px 0 12px}
+h4{color:var(--green);margin:16px 0 8px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin:16px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;overflow-x:auto;font-size:0.82em;line-height:1.5;margin:12px 0}
+code{color:var(--green)}
+.highlight{color:var(--green);font-weight:600}
+.path{color:var(--orange);font-family:monospace;font-size:0.9em}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:12px 16px;margin:12px 0;border-radius:0 8px 8px 0}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.vs>div{padding:16px;background:var(--surface2);border-radius:8px}
+table{width:100%;border-collapse:collapse;margin:12px 0}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);font-size:0.9em}
+th{color:var(--accent);background:var(--surface2)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.back{display:inline-block;margin-bottom:20px;padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
+</style>
+</head>
+<body>
+<div class="container">
+<a href="vla_architecture_explorer.html" class="back">← 返回主页</a>
+<h1>VLA 代码精读课</h1>
+<p style="text-align:center;margin-bottom:30px">总分总形式：整体架构 → 原理/公式/数据流 → 代码路径 → 逐行精读</p>
+</div>
+</body>
+</html>
+
+
+<!-- Part 1: OpenPI π₀ Code Walkthrough -->
+<div class="container">
+
+<h2>Part 1: OpenPI — π₀ 代码精读</h2>
+
+<div class="section">
+<h3>1.1 总览：π₀ 整体架构</h3>
+<p>π₀ 的核心是<b>双 Gemma 架构</b>：一个大 Gemma-2B 做视觉-语言编码（prefix），一个小 Gemma-300M 做动作去噪（suffix）。两者在<b>同一个注意力空间</b>中通过 prefix-suffix 掩码交互。</p>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                    π₀ 单次前向传播                            │
+│                                                             │
+│  Prefix (VLM 编码):                                         │
+│    SigLIP(images) → image_tokens [B, 256×N_cam, 2048]       │
+│    Gemma-2B.embed(text) → text_tokens [B, L_text, 2048]     │
+│    拼接 → prefix_tokens, attention mask = bidirectional     │
+│                                                             │
+│  Suffix (Action Expert):                                    │
+│    state_proj(state) → state_token [B, 1, 768]              │
+│    action_in_proj(noisy_action) → action_tokens [B, 50, 768]│
+│    MLP(concat[action, time_emb]) → suffix_tokens            │
+│    attention mask = causal (actions不回看prefix之后的token)  │
+│                                                             │
+│  联合前向:                                                   │
+│    Gemma-2B 处理 prefix_tokens (大模型)                      │
+│    Gemma-300M 处理 suffix_tokens (小模型)                    │
+│    两者共享 KV：suffix 可 attend 到 prefix                   │
+│    输出: suffix_out[:, -action_horizon:] → action_out_proj   │
+│    → 预测速度 v_t [B, 50, action_dim]                       │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+</div>
+
+
+<div class="section">
+<h3>1.2 原理与公式</h3>
+<h4>Flow Matching 目标</h4>
+<pre><code># 线性插值构造噪声轨迹 (注意：openpi 的 t 方向与论文相反！t=1是噪声)
+x_t = t · noise + (1-t) · action        # t∈(0,1]
+u_t = noise - action                     # 真实速度（目标）
+
+# 模型预测速度
+v_t = model(x_t, t, observation)
+
+# 损失
+loss = mean((v_t - u_t)²)</code></pre>
+<div class="warn"><b>注意</b>：OpenPI 代码中 t=1 是纯噪声、t=0 是干净动作，与 π₀ 论文<b>相反</b>（代码注释明确说明了这点）。StarVLA 则与论文一致（t=1 是干净动作）。</div>
+
+<h4>推理采样 (Euler ODE)</h4>
+<pre><code># 从 t=1（噪声）积分到 t=0（动作）
+dt = -1/num_steps
+x = noise  # 起点
+for step in range(num_steps):
+    time = 1.0 + step * dt  # 从1递减到0
+    v_t = model(x, time, observation)
+    x = x + dt * v_t        # Euler 步
+return x  # 最终动作</code></pre>
+
+<h4>Prefix-Suffix 注意力掩码</h4>
+<pre><code># ar_mask 控制因果性:
+#   False = 该 token 与前面的 token 共享注意力 (bidirectional)
+#   True  = 前面的 token 不能看到它 (causal boundary)
+
+# Prefix (images + text): 全部 False → 彼此 bidirectional attention
+# Suffix (state + actions): 
+#   state: True → prefix不能看到state
+#   actions[0]: True → causal边界，prefix+state不能看到actions
+#   actions[1:]: False → actions之间 bidirectional
+
+# 效果: prefix(images+text) ↔ 互相看
+#       suffix(state+actions) → 可以看 prefix
+#       prefix → 看不到 suffix</code></pre>
+</div>
+
+
+<div class="section">
+<h3>1.3 代码路径</h3>
+<table>
+<tr><th>功能</th><th>文件路径</th><th>核心类/函数</th></tr>
+<tr><td>模型定义</td><td class="path">src/openpi/models/pi0.py</td><td><code>class Pi0</code></td></tr>
+<tr><td>配置</td><td class="path">src/openpi/models/pi0_config.py</td><td><code>class Pi0Config</code></td></tr>
+<tr><td>VLM backbone</td><td class="path">src/openpi/models/gemma.py</td><td><code>class Module</code> (双Gemma)</td></tr>
+<tr><td>图像编码</td><td class="path">src/openpi/models/siglip.py</td><td><code>class Module</code> (SigLIP ViT)</td></tr>
+<tr><td>FAST 变体</td><td class="path">src/openpi/models/pi0_fast.py</td><td><code>class Pi0FAST</code></td></tr>
+<tr><td>训练循环</td><td class="path">src/openpi/training/config.py</td><td>训练配置和入口</td></tr>
+<tr><td>策略接口</td><td class="path">src/openpi/policies/policy.py</td><td><code>class Policy</code></td></tr>
+<tr><td>PyTorch推理</td><td class="path">src/openpi/models_pytorch/pi0_pytorch.py</td><td>PyTorch版模型</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>1.4 逐行精读：Pi0.__init__</h3>
+<p>文件: <span class="path">src/openpi/models/pi0.py:66-100</span></p>
+<pre><code>class Pi0(_model.BaseModel):
+    def __init__(self, config: pi0_config.Pi0Config, rngs: nnx.Rngs):
+        super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
+        self.pi05 = config.pi05  # ← π₀ vs π₀.₅ 开关
+
+        # ═══ 双 Gemma 核心 ═══
+        paligemma_config = _gemma.get_config(config.paligemma_variant)   # Gemma-2B 配置
+        action_expert_config = _gemma.get_config(config.action_expert_variant)  # Gemma-300M 配置
+
+        # 两个 Gemma 打包成一个 Module (共享注意力空间)
+        llm = nnx_bridge.ToNNX(
+            _gemma.Module(
+                configs=[paligemma_config, action_expert_config],  # ← 传入两个config!
+                embed_dtype=config.dtype,
+                adarms=config.pi05,  # π₀.₅ 用 adaRMSNorm
+            )
+        )
+        # use_adarms: prefix(大Gemma)不用, suffix(小Gemma)用(仅π₀.₅)
+        llm.lazy_init(rngs=rngs, use_adarms=[False, True] if config.pi05 else [False, False])
+
+        # ═══ 图像编码器 (SigLIP ViT So400m/14) ═══
+        img = nnx_bridge.ToNNX(
+            _siglip.Module(
+                num_classes=paligemma_config.width,  # 投影到 Gemma-2B 的 width
+                variant="So400m/14",  # SigLIP So400m, patch=14
+                pool_type="none",     # 不池化, 保留所有 patch tokens
+            )
+        )
+        self.PaliGemma = nnx.Dict(llm=llm, img=img)
+
+        # ═══ 动作投影层 ═══
+        self.action_in_proj = nnx.Linear(config.action_dim, action_expert_config.width)
+        #                     action_dim (如32) → Gemma-300M 的 hidden_dim (如768)
+
+        if config.pi05:
+            # π₀.₅: 时间步用独立 MLP (给 adaRMSNorm 用)
+            self.time_mlp_in = nnx.Linear(action_expert_config.width, action_expert_config.width)
+            self.time_mlp_out = nnx.Linear(action_expert_config.width, action_expert_config.width)
+        else:
+            # π₀: state + time 混合进 action tokens
+            self.state_proj = nnx.Linear(config.action_dim, action_expert_config.width)
+            self.action_time_mlp_in = nnx.Linear(2 * action_expert_config.width, action_expert_config.width)
+            self.action_time_mlp_out = nnx.Linear(action_expert_config.width, action_expert_config.width)
+
+        # 最终输出: Gemma-300M hidden → action_dim
+        self.action_out_proj = nnx.Linear(action_expert_config.width, config.action_dim)</code></pre>
+<div class="note"><b>关键理解</b>：<code>_gemma.Module(configs=[cfg_2b, cfg_300m])</code> 创建了一个"双头"Gemma——内部有两套参数，prefix 用大 Gemma 的权重，suffix 用小 Gemma 的权重，但它们在同一个 forward 中执行，共享 KV cache。这是 π₀ 最核心的设计。</div>
+</div>
+
+
+<div class="section">
+<h3>1.5 逐行精读：Pi0.compute_loss（训练前向）</h3>
+<p>文件: <span class="path">src/openpi/models/pi0.py:192-220</span></p>
+<pre><code>def compute_loss(self, rng, observation, actions, *, train=False):
+    preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
+    observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+
+    # ═══ Step 1: 采样噪声和时间步 ═══
+    batch_shape = actions.shape[:-2]
+    noise = jax.random.normal(noise_rng, actions.shape)       # 纯高斯噪声
+    time = jax.random.beta(time_rng, 1.5, 1, batch_shape) * 0.999 + 0.001  # Beta(1.5,1)
+
+    # ═══ Step 2: 线性插值构造 noisy action ═══
+    time_expanded = time[..., None, None]   # [B] → [B,1,1] for broadcast
+    x_t = time_expanded * noise + (1 - time_expanded) * actions  # 注意方向!
+    u_t = noise - actions  # 真实速度 (目标)
+
+    # ═══ Step 3: 编码 prefix (图像+语言) ═══
+    prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+
+    # ═══ Step 4: 编码 suffix (state + noisy actions + timestep) ═══
+    suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(
+        observation, x_t, time
+    )
+
+    # ═══ Step 5: 构造注意力掩码 + 联合前向 ═══
+    input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
+    ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
+    attn_mask = make_attn_mask(input_mask, ar_mask)  # [B, total_len, total_len]
+    positions = jnp.cumsum(input_mask, axis=1) - 1
+
+    # 关键! 一次前向同时处理 prefix 和 suffix
+    (prefix_out, suffix_out), _ = self.PaliGemma.llm(
+        [prefix_tokens, suffix_tokens],   # 列表! [大Gemma输入, 小Gemma输入]
+        mask=attn_mask,
+        positions=positions,
+        adarms_cond=[None, adarms_cond]   # 仅 suffix 注入 timestep
+    )
+
+    # ═══ Step 6: 取最后 action_horizon 个 token → 预测速度 ═══
+    v_t = self.action_out_proj(suffix_out[:, -self.action_horizon:])
+
+    # ═══ Step 7: MSE Loss ═══
+    return jnp.mean(jnp.square(v_t - u_t), axis=-1)</code></pre>
+<div class="note"><b>核心洞察</b>：<code>self.PaliGemma.llm([prefix_tokens, suffix_tokens])</code> 这一行是 π₀ 的灵魂——两个不同大小的 Gemma 在同一次前向中执行，大 Gemma 处理 prefix（产生 KV），小 Gemma 处理 suffix（消费 prefix 的 KV + 产生自己的 KV）。这不是 cross-attention，而是<b>共享 KV 空间的异构前向</b>。</div>
+</div>
+
+<div class="section">
+<h3>1.6 逐行精读：Pi0.sample_actions（推理）</h3>
+<p>文件: <span class="path">src/openpi/models/pi0.py:222-280</span></p>
+<pre><code>def sample_actions(self, rng, observation, *, num_steps=10, noise=None):
+    observation = _model.preprocess_observation(None, observation, train=False)
+    dt = -1.0 / num_steps  # 从 t=1 → t=0
+    batch_size = observation.state.shape[0]
+    if noise is None:
+        noise = jax.random.normal(rng, (batch_size, self.action_horizon, self.action_dim))
+
+    # ═══ 关键优化: 先算 prefix 并缓存 KV ═══
+    prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+    prefix_attn_mask = make_attn_mask(prefix_mask, prefix_ar_mask)
+    positions = jnp.cumsum(prefix_mask, axis=1) - 1
+    _, kv_cache = self.PaliGemma.llm([prefix_tokens, None], mask=prefix_attn_mask, positions=positions)
+    # ↑ prefix 只算一次! KV cache 在后续去噪步骤中复用
+
+    def step(carry):
+        x_t, time = carry
+        suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(
+            observation, x_t, jnp.broadcast_to(time, batch_size)
+        )
+        # suffix attend to both prefix(via cache) and self
+        suffix_attn_mask = make_attn_mask(suffix_mask, suffix_ar_mask)
+        prefix_attn_mask = einops.repeat(prefix_mask, "b p -> b s p", s=suffix_tokens.shape[1])
+        full_attn_mask = jnp.concatenate([prefix_attn_mask, suffix_attn_mask], axis=-1)
+        positions = jnp.sum(prefix_mask, axis=-1)[:, None] + jnp.cumsum(suffix_mask, axis=-1) - 1
+
+        # 用 KV cache 避免重算 prefix!
+        (prefix_out, suffix_out), _ = self.PaliGemma.llm(
+            [None, suffix_tokens],     # prefix=None 表示用cache
+            mask=full_attn_mask,
+            positions=positions,
+            kv_cache=kv_cache,         # ← 复用 prefix 的 KV
+            adarms_cond=[None, adarms_cond],
+        )
+        v_t = self.action_out_proj(suffix_out[:, -self.action_horizon:])
+        return x_t + dt * v_t, time + dt  # Euler step
+
+    # 循环去噪: while time >= 0
+    x_0, _ = jax.lax.while_loop(lambda c: c[1] >= -dt/2, step, (noise, 1.0))
+    return x_0</code></pre>
+<div class="note"><b>推理优化</b>：prefix (图像+语言编码) 只计算一次并缓存 KV，后续 N 步去噪只重新计算 suffix (noisy actions)。这样 N 步推理的计算量 ≈ 1次 prefix + N次小 Gemma-300M suffix，而非 N 次完整前向。</div>
+</div>
+
+
+<h2>Part 2: StarVLA — QwenGR00T 代码精读</h2>
+
+<div class="section">
+<h3>2.1 总览：QwenGR00T 整体架构</h3>
+<p>StarVLA-GR00T 采用<b>模块化解耦</b>设计：VLM (Qwen-VL) 和 Action Head (DiT) 是两个完全独立的 nn.Module，通过 hidden_states 张量传递信息。</p>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│              StarVLA-GR00T 前向传播                           │
+│                                                             │
+│  Step 1: VLM 编码 (独立模块)                                │
+│    Qwen2.5-VL(images, text)                                 │
+│    → hidden_states[-1] = last_hidden [B, L, 2048]           │
+│    完全冻结或低LR微调                                        │
+│                                                             │
+│  Step 2: Action Head 前向 (独立模块)                         │
+│    FlowmatchingActionHead(                                  │
+│        vl_embs = last_hidden,     ← VLM 输出作为 KV 条件    │
+│        actions = gt_actions,      ← Ground truth            │
+│        state = proprio,           ← 本体感觉                │
+│    ) → action_loss                                          │
+│                                                             │
+│  Action Head 内部:                                          │
+│    ActionEncoder(noisy_action, t) → action_tokens [B,T,768] │
+│    state_encoder(state) → state_token [B,1,768]             │
+│    future_tokens (learned) → [B,32,768]                     │
+│    拼接 → DiT(cross_attn_kv=VLM_features) → velocity       │
+│    loss = MSE(velocity, action - noise)                     │
+└─────────────────────────────────────────────────────────────┘</code></pre>
+</div>
+
+<div class="section">
+<h3>2.2 原理与公式</h3>
+<h4>与 π₀ 的 Flow Matching 对比</h4>
+<pre><code># StarVLA (与论文方向一致): t=0是噪声, t=1是动作
+noisy = (1-t)·noise + t·action     # t∈[0,1]
+velocity_true = action - noise
+
+# OpenPI (方向相反): t=1是噪声, t=0是动作
+noisy = t·noise + (1-t)·action
+velocity_true = noise - action
+
+# 本质相同! 只是 t 的方向定义不同, 推理时积分方向也相应相反</code></pre>
+
+<h4>核心区别：连接方式</h4>
+<div class="vs">
+<div>
+<h4>π₀: 共享 KV 空间</h4>
+<pre><code># prefix(2B) 和 suffix(300M)
+# 在同一个 attention 中
+# suffix 天然能 attend to prefix
+# 通过 mask 控制信息流向</code></pre>
+</div>
+<div>
+<h4>StarVLA: Cross-Attention</h4>
+<pre><code># VLM 输出 → 作为 K, V
+# DiT action tokens → 作为 Q
+# 显式 cross-attention 层
+# 每隔一层做一次 cross-attn</code></pre>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>2.3 代码路径</h3>
+<table>
+<tr><th>功能</th><th>文件路径</th><th>核心类/函数</th></tr>
+<tr><td>Framework 组装</td><td class="path">starVLA/model/framework/VLM4A/QwenGR00T.py</td><td><code>class Qwen_GR00T</code></td></tr>
+<tr><td>基类</td><td class="path">starVLA/model/framework/base_framework.py</td><td><code>class baseframework</code></td></tr>
+<tr><td>VLM 模块</td><td class="path">starVLA/model/modules/vlm/QWen2_5.py</td><td><code>class _QWen_VL_Interface</code></td></tr>
+<tr><td>Action Head</td><td class="path">starVLA/model/modules/action_model/GR00T_ActionHeader.py</td><td><code>class FlowmatchingActionHead</code></td></tr>
+<tr><td>DiT 网络</td><td class="path">starVLA/model/modules/action_model/flow_matching_head/cross_attention_dit.py</td><td><code>class DiT</code></td></tr>
+<tr><td>注册表</td><td class="path">starVLA/model/tools.py</td><td><code>FRAMEWORK_REGISTRY</code></td></tr>
+<tr><td>训练器</td><td class="path">starVLA/training/train_starvla.py</td><td>训练循环</td></tr>
+</table>
+</div>
+
+
+<div class="section">
+<h3>2.4 逐行精读：Qwen_GR00T.__init__</h3>
+<p>文件: <span class="path">starVLA/model/framework/VLM4A/QwenGR00T.py:135-165</span></p>
+<pre><code>@FRAMEWORK_REGISTRY.register("QwenGR00T")   # ← 注册到全局 Registry
+class Qwen_GR00T(baseframework):
+    def __init__(self, config=None, **kwargs):
+        super().__init__()
+
+        # ═══ Step 1: 合并默认配置和 YAML 配置 ═══
+        self.config = merge_framework_config(QwenGR00TDefaultConfig, config)
+        # QwenGR00TDefaultConfig 定义了所有默认超参 (action_dim=7, action_horizon=8...)
+        # YAML 值会覆盖默认值
+
+        # ═══ Step 2: 创建 VLM (完全独立的模块) ═══
+        self.qwen_vl_interface = get_vlm_model(config=self.config)
+        # get_vlm_model 是工厂函数:
+        #   "Qwen2.5-VL" → _QWen_VL_Interface(config)
+        #   "Qwen3-VL"   → _QWen3_VL_Interface(config)
+        #   "gemma-4"    → _Gemma4_VL_Interface(config)
+
+        # ═══ Step 3: 对齐维度 (VLM hidden_size → DiT cross_attn_dim) ═══
+        self.config.framework.action_model.diffusion_model_cfg.cross_attention_dim = (
+            self.qwen_vl_interface.model.config.hidden_size  # 如 2048
+        )
+        # ↑ 这行确保 DiT 的 cross-attention 维度与 VLM 输出匹配
+
+        # ═══ Step 4: 创建 Action Head (完全独立的模块) ═══
+        self.action_model: FlowmatchingActionHead = get_action_model(config=self.config)
+        # get_action_model → FlowmatchingActionHead(full_config=config)
+
+        self.action_horizon = int(self.config.framework.action_model.action_horizon)</code></pre>
+<div class="note"><b>对比 π₀</b>：StarVLA 的 VLM 和 Action Head 是<b>两个独立的 nn.Module</b>，通过张量传递（hidden_states）连接。π₀ 则是一个统一的 Module 内部有两套权重。StarVLA 的好处是可以随时替换任意一边。</div>
+</div>
+
+<div class="section">
+<h3>2.5 逐行精读：Qwen_GR00T.forward（训练前向）</h3>
+<p>文件: <span class="path">starVLA/model/framework/VLM4A/QwenGR00T.py:167-220</span></p>
+<pre><code>def forward(self, examples: List[dict] = None, **kwargs):
+    # ═══ 解包输入 (标准化dict接口) ═══
+    batch_images = [example["image"] for example in examples]   # [B, [PIL]]
+    instructions = [example["lang"] for example in examples]    # [B, str]
+    actions = [example["action"] for example in examples]       # [B, T, 7]
+    state = [example["state"] for example in examples] if "state" in examples[0] else None
+
+    # ═══ Step 1: VLM 编码 ═══
+    qwen_inputs = self.qwen_vl_interface.build_qwenvl_inputs(
+        images=batch_images, instructions=instructions
+    )
+    # build_qwenvl_inputs: PIL→processor→{input_ids, pixel_values, attention_mask, ...}
+
+    backbone_attention_mask = qwen_inputs.get("attention_mask", None)
+
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        qwenvl_outputs = self.qwen_vl_interface(
+            **qwen_inputs,
+            output_hidden_states=True,  # ← 必须开启! 拿所有层的隐状态
+            return_dict=True,
+        )
+        last_hidden = qwenvl_outputs.hidden_states[-1]  # [B, L, 2048]
+        # ↑ 只取最后一层 (GR00T 策略)
+        # 如果是 PI, 则取: hidden_states[-N:]
+
+    # ═══ Step 2: 准备动作标签 ═══
+    with torch.autocast("cuda", dtype=torch.float32):  # action head 用 fp32
+        actions = torch.tensor(np.array(actions), device=last_hidden.device, dtype=last_hidden.dtype)
+        actions_target = actions[:, -self.action_horizon:, :]  # 只取最后 chunk
+
+        # ═══ Step 3: 重复采样 (数据增强: 同一个样本采多次不同噪声) ═══
+        repeated_diffusion_steps = self.config.framework.action_model.get("repeated_diffusion_steps", 4)
+        actions_target_repeated = actions_target.repeat(repeated_diffusion_steps, 1, 1)  # [B*R, T, 7]
+        last_hidden_repeated = last_hidden.repeat(repeated_diffusion_steps, 1, 1)        # [B*R, L, H]
+        # ↑ 相当于: 每个样本生成 R 组不同噪声, 增加训练信号密度
+
+        state_repeated = None
+        if state is not None:
+            state = torch.tensor(np.array(state), device=last_hidden.device, dtype=last_hidden.dtype)
+            state_repeated = state.repeat(repeated_diffusion_steps, 1, 1)
+
+        # ═══ Step 4: Action Head 前向 (内部完成采噪声+计算loss) ═══
+        action_loss = self.action_model(
+            last_hidden_repeated,        # VLM features (作为 cross-attn KV)
+            actions_target_repeated,     # GT actions (用于构造 noisy action)
+            state_repeated,              # proprioception
+            encoder_attention_mask=backbone_attention_mask,
+        )
+
+    return {"action_loss": action_loss}</code></pre>
+<div class="note"><b>repeated_diffusion_steps</b> 是一个训练技巧：对同一个 (观测, 动作) 对，采样多组不同的噪声和时间步，等效于增大 batch size 但不增加 VLM 编码的计算量（VLM 只算一次，然后 repeat）。</div>
+</div>
+
+
+<div class="section">
+<h3>2.6 逐行精读：FlowmatchingActionHead.forward（Action Head 内部）</h3>
+<p>文件: <span class="path">starVLA/model/modules/action_model/GR00T_ActionHeader.py:230-275</span></p>
+<pre><code>class FlowmatchingActionHead(nn.Module):
+    def forward(self, vl_embs, actions, state=None, encoder_attention_mask=None):
+        """
+        vl_embs: [B, L, H_vlm] — VLM 的 hidden states (cross-attn 的 KV)
+        actions: [B, T, action_dim] — GT 动作 (用于构造噪声目标)
+        """
+        device = vl_embs.device
+
+        # ═══ Step 1: Flow Matching 噪声构造 ═══
+        noise = torch.randn(actions.shape, device=device, dtype=actions.dtype)
+        t = self.sample_time(actions.shape[0], device, actions.dtype)  # Beta(1.5, 1.0)
+        t = t[:, None, None]  # [B,1,1] for broadcast
+
+        noisy_trajectory = (1 - t) * noise + t * actions  # 线性插值
+        velocity = actions - noise                         # 真实速度 (目标)
+
+        # ═══ Step 2: 离散化时间步 (给 DiT 的 AdaNorm 用) ═══
+        t_discretized = (t[:, 0, 0] * self.num_timestep_buckets).long()  # [B]
+
+        # ═══ Step 3: 编码 noisy action + timestep → action features ═══
+        action_features = self.action_encoder(noisy_trajectory, t_discretized)
+        # ActionEncoder: Linear(action) + SinPos(t) → concat → MLP → [B,T,768]
+
+        # ═══ Step 4: 编码 state (可选) ═══
+        state_features = self.state_encoder(state) if state is not None else None
+        # MLP: state_dim → hidden → 768
+
+        # ═══ Step 5: 添加位置编码 ═══
+        if self.config.add_pos_embed:
+            pos_ids = torch.arange(action_features.shape[1], device=device)
+            pos_embs = self.position_embedding(pos_ids).unsqueeze(0)
+            action_features = action_features + pos_embs
+
+        # ═══ Step 6: 拼接所有 token ═══
+        future_tokens = self.future_tokens.weight.unsqueeze(0).expand(vl_embs.shape[0], -1, -1)
+        # future_tokens: [B, 32, 768] — 可学习的"规划"token
+
+        sa_embs = torch.cat((state_features, future_tokens, action_features), dim=1)
+        # if no state: sa_embs = [future_tokens | action_features]
+        # 最终: [B, 1+32+T, 768]
+
+        # ═══ Step 7: DiT 前向 (核心去噪网络) ═══
+        model_output = self.model(
+            hidden_states=sa_embs,                      # Q 源: [B, 33+T, 768]
+            encoder_hidden_states=vl_embs,             # KV 源: [B, L, H_vlm]
+            encoder_attention_mask=encoder_attention_mask,
+            timestep=t_discretized,                    # AdaNorm 条件
+        )
+        # DiT 内部: 16层交替 cross-attn(看VLM) + self-attn(action间推理)
+
+        # ═══ Step 8: 投影回 action 空间 + 计算 loss ═══
+        pred = self.action_decoder(model_output)       # MLP: hidden → action_dim
+        pred_actions = pred[:, -actions.shape[1]:]     # 取最后 T 个 (跳过 state/future tokens)
+
+        loss = ((pred_actions - velocity) ** 2).mean() # MSE on velocity
+        return loss</code></pre>
+</div>
+
+<div class="section">
+<h3>2.7 逐行精读：DiT 内部前向传播</h3>
+<p>文件: <span class="path">starVLA/model/modules/action_model/flow_matching_head/cross_attention_dit.py:268-300</span></p>
+<pre><code>class DiT(ModelMixin, ConfigMixin):
+    def forward(self, hidden_states, encoder_hidden_states, timestep, encoder_attention_mask=None):
+        # hidden_states: [B, T, D_dit] — action/state/future tokens
+        # encoder_hidden_states: [B, L, H_vlm] — VLM features (做 KV)
+        # timestep: [B] — 离散化时间步
+
+        # ═══ 编码时间步 → 用于 AdaNorm ═══
+        temb = self.timestep_encoder(timestep)  # [B, D_dit]
+        # TimestepEncoder: Sinusoidal → MLP → [B, inner_dim]
+
+        # ═══ 逐层处理 (交替结构) ═══
+        for idx, block in enumerate(self.transformer_blocks):
+            if idx % 2 == 1 and self.config.interleave_self_attention:
+                # 奇数层: Self-Attention (action tokens 之间交互)
+                hidden_states = block(
+                    hidden_states,
+                    encoder_hidden_states=None,  # ← 不做 cross-attn!
+                    temb=temb,
+                )
+            else:
+                # 偶数层: Cross-Attention (从 VLM features 取信息)
+                hidden_states = block(
+                    hidden_states,
+                    encoder_hidden_states=encoder_hidden_states,  # ← VLM 做 KV
+                    encoder_attention_mask=encoder_attention_mask,
+                    temb=temb,
+                )
+
+        # ═══ 输出投影 (AdaNorm + Linear) ═══
+        shift, scale = self.proj_out_1(F.silu(temb)).chunk(2, dim=1)
+        hidden_states = self.norm_out(hidden_states) * (1 + scale[:, None]) + shift[:, None]
+        return self.proj_out_2(hidden_states)  # [B, T, output_dim]</code></pre>
+<div class="note"><b>交替结构的意义</b>：偶数层 cross-attention 让 action tokens "看" VLM 特征（获取视觉/语言信息）；奇数层 self-attention 让 action tokens 之间互相推理（学习时间步之间的依赖关系）。AdaNorm 通过 timestep embedding 调制每一层的行为——同一个网络在不同噪声水平下表现不同。</div>
+</div>
+
+
+<h2>Part 3: 总结对比——两种设计哲学的本质差异</h2>
+
+<div class="section">
+<h3>3.1 信息流对比图</h3>
+<div class="vs">
+<div>
+<h4 style="color:var(--accent2)">OpenPI π₀: 共享注意力空间</h4>
+<pre><code>Gemma-2B ──┐
+           │ 共享 KV space
+Gemma-300M ┘
+
+[img|text|state|noisy_action]
+  ↑ prefix     ↑ suffix
+  bidirect.    causal
+  │            │
+  └── suffix attend to prefix ──┘
+      (通过注意力掩码实现)
+
+• 一次前向算所有
+• 大小模型在同一矩阵乘中
+• prefix KV cache 可复用</code></pre>
+</div>
+<div>
+<h4 style="color:var(--accent)">StarVLA GR00T: Cross-Attention 解耦</h4>
+<pre><code>Qwen-VL ────→ hidden_states
+                    │
+                    ▼ (作为 KV)
+DiT ← cross-attn ──┘
+ │
+ ▼
+actions
+
+• VLM 和 DiT 是两个独立前向
+• Cross-attn 是信息桥梁
+• 可以冻结 VLM 只训练 DiT
+• 可以替换任意一边</code></pre>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h3>3.2 设计决策对照表</h3>
+<table>
+<tr><th>设计决策</th><th>OpenPI (π₀)</th><th>StarVLA (GR00T)</th><th>各自原因</th></tr>
+<tr><td><b>去噪器架构</b></td><td>小 LLM (Gemma-300M)</td><td>DiT (Transformer, ~100M)</td><td>π₀ 复用 LLM 能力; StarVLA 用专用去噪网络更灵活</td></tr>
+<tr><td><b>VLM→Action 连接</b></td><td>共享 KV + 掩码</td><td>Cross-attention</td><td>π₀ 信息流更紧密; StarVLA 解耦更彻底</td></tr>
+<tr><td><b>时间步注入</b></td><td>MLP concat 到 action tokens<br>(π₀.₅: adaRMSNorm)</td><td>AdaLayerNorm (scale/shift)</td><td>π₀ 更简单; StarVLA 遵循 DiT/Diffusion 惯例</td></tr>
+<tr><td><b>推理 KV cache</b></td><td>prefix cache (VLM算一次)</td><td>无 cache (VLM算一次,DiT无cache)</td><td>π₀ prefix 在 LLM 内; StarVLA VLM和DiT完全分离</td></tr>
+<tr><td><b>训练重复采样</b></td><td>每 batch 一组噪声</td><td>repeated_diffusion_steps=8<br>(同batch多组噪声)</td><td>StarVLA 用 repeat 增加训练信号而不增加VLM计算</td></tr>
+<tr><td><b>框架</b></td><td>JAX (Flax NNX)</td><td>PyTorch (Accelerate+DeepSpeed)</td><td>PI团队用JAX; StarVLA面向社区用PyTorch</td></tr>
+<tr><td><b>State 输入</b></td><td>投影后拼在 suffix 前<br>(π₀.₅: 离散化为文本token)</td><td>MLP编码后拼在 action tokens 前</td><td>类似处理，位置不同</td></tr>
+<tr><td><b>位置编码</b></td><td>RoPE (LLM内置)</td><td>learned positional embedding</td><td>π₀复用LLM的; StarVLA DiT用独立PE</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>3.3 一句话总结</h3>
+<div class="vs">
+<div style="border-left:3px solid var(--accent2)">
+<p style="color:var(--text);font-size:1em"><b>OpenPI π₀</b></p>
+<p>"用一个小 LLM 做去噪器，让它和大 LLM 共享注意力空间。本质是把 flow matching 融入了 LLM 的 next-token 范式中——大模型理解世界，小模型在同一空间中生成动作。"</p>
+</div>
+<div style="border-left:3px solid var(--accent)">
+<p style="color:var(--text);font-size:1em"><b>StarVLA GR00T</b></p>
+<p>"用一个专用 DiT 做去噪器，通过 cross-attention 从 VLM 取条件。VLM 和 DiT 是两个独立世界，通过标准化的 hidden_states 接口连接——像 Stable Diffusion 中 CLIP 和 U-Net 的关系。"</p>
+</div>
+</div>
+</div>
+
+</div><!-- container -->
+</body>
+</html>

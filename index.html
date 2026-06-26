@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Hub - 学习总览</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.6;min-height:100vh}
+.container{max-width:1000px;margin:0 auto;padding:40px 20px}
+h1{font-size:2.4em;text-align:center;margin-bottom:8px;background:linear-gradient(135deg,var(--accent),var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.subtitle{text-align:center;color:var(--dim);margin-bottom:40px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;transition:transform 0.2s,box-shadow 0.2s;text-decoration:none;color:inherit;display:block}
+.card:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,0.4);border-color:var(--accent)}
+.card .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.72em;font-weight:600;margin-bottom:10px}
+.tag-vla{background:rgba(96,165,250,0.15);color:var(--accent)}
+.tag-vlm{background:rgba(167,139,250,0.15);color:var(--accent2)}
+.tag-wm{background:rgba(52,211,153,0.15);color:var(--green)}
+.tag-tactile{background:rgba(251,146,60,0.15);color:var(--orange)}
+.card h3{margin-bottom:8px;font-size:1.1em}
+.card p{color:var(--dim);font-size:0.88em}
+.card .meta{margin-top:12px;font-size:0.78em;color:var(--dim);border-top:1px solid var(--border);padding-top:8px}
+.section-title{color:var(--dim);font-size:0.85em;text-transform:uppercase;letter-spacing:1px;margin:30px 0 12px;padding-left:4px}
+footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;padding:20px}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Study Hub</h1>
+<p class="subtitle">项目分析 · 代码精读 · 架构对比 | 随时随地学习</p>
+
+<div class="section-title">VLA / 具身智能</div>
+<div class="grid">
+  <a class="card" href="pages/starVLA/vla_architecture_explorer.html">
+    <span class="tag tag-vla">VLA</span>
+    <h3>StarVLA 架构交互式学习</h3>
+    <p>主流 VLA 四种 Action Head (FAST/OFT/GR00T/PI) 的模块化设计、数据流、方法对比。含自测 Quiz。</p>
+    <div class="meta">starVLA 仓库 · 7 个 tab · 交互式</div>
+  </a>
+  <a class="card" href="pages/starVLA/code_walkthrough.html">
+    <span class="tag tag-vla">VLA</span>
+    <h3>OpenPI & StarVLA 代码精读课</h3>
+    <p>π₀ 双 Gemma 架构 vs StarVLA DiT 架构的逐行代码精读，总分总形式，含对比总结。</p>
+    <div class="meta">openpi + starVLA · 代码级 · Flow Matching</div>
+  </a>
+  <a class="card" href="pages/DynaGuide/index.html">
+    <span class="tag tag-wm">World Model</span>
+    <h3>DynaGuide 仓库分析</h3>
+    <p>DynaGuide 项目的代码结构分析与学习笔记。</p>
+    <div class="meta">DynaGuide 仓库</div>
+  </a>
+</div>
+
+<div class="section-title">VLM / 多模态模型</div>
+<div class="grid">
+  <a class="card" href="pages/VLMGuide/VLMGuide_对比网页.html">
+    <span class="tag tag-vlm">VLM</span>
+    <h3>VLM Guide 对比网页</h3>
+    <p>视觉-语言模型对比分析，架构横评。</p>
+    <div class="meta">论文笔记 · 对比分析</div>
+  </a>
+</div>
+
+<div class="section-title">快速添加新页面</div>
+<div class="grid">
+  <div class="card" style="border-style:dashed;opacity:0.5;cursor:default">
+    <span class="tag" style="background:rgba(255,255,255,0.05);color:var(--dim)">模板</span>
+    <h3 style="color:var(--dim)">+ 新增学习页面</h3>
+    <p>编辑 ~/study-hub/index.html，复制一个 card 块，修改 href/标题/描述即可。</p>
+  </div>
+</div>
+
+</div>
+<footer>~/study-hub/index.html · 浏览器打开即用 · 后续可部署到 GitHub Pages</footer>
+</body>
+</html>

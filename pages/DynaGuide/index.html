@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DynaGuide 代码学习指南</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1a1a2e;color:#e0e0e0;line-height:1.6}
+.container{max-width:1200px;margin:0 auto;padding:20px}
+h1{text-align:center;color:#4fc3f7;margin:20px 0;font-size:2em}
+h2{color:#81c784;margin:20px 0 10px;cursor:pointer;padding:10px;background:#2d2d44;border-radius:8px;border-left:4px solid #4fc3f7}
+h2:hover{background:#3d3d54}
+h3{color:#ffb74d;margin:15px 0 8px}
+.section{padding:15px;margin-bottom:10px;display:none;background:#252540;border-radius:0 0 8px 8px}
+.section.active{display:block}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0;justify-content:center}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>DynaGuide 代码深度学习指南</h1>
+<p style="text-align:center;color:#aaa;margin-bottom:20px">点击章节标题展开/折叠 | 按顺序阅读理解引导链路</p>
+<div class="nav">
+<button onclick="toggleAll(true)" style="padding:8px 16px;background:#4fc3f7;border:none;border-radius:4px;cursor:pointer;color:#000">全部展开</button>
+<button onclick="toggleAll(false)" style="padding:8px 16px;background:#555;border:none;border-radius:4px;cursor:pointer;color:#fff">全部折叠</button>
+</div>
+<h2 onclick="toggle('s1')">1. 一句话理解 DynaGuide</h2>
+<div id="s1" class="section active">
+<p><strong>核心思想</strong>：冻结一个已训好的 Diffusion Policy（会多种行为但不知道该做哪个），用一个独立训练的动态模型的梯度，在 DDIM 去噪过程中"推"动作走向期望的视觉目标。</p>
+<p style="margin-top:10px"><strong>类比</strong>：Policy 是一个会弹多首曲子的钢琴家，DynaGuide 是在他耳边轻声说"弹莫扎特"的指挥——不改变他的弹奏能力，只引导他选择弹什么。</p>
+<p style="margin-top:10px"><strong>关键限制</strong>：如果钢琴家从来没学过某首曲子，指挥再怎么说也弹不出来——这就是 DynaGuide 只能做行为选择、不能解决真正 OOD 的原因。</p>
+</div>
+
+<h2 onclick="toggle('s2')">2. 系统架构全景</h2>
+<div id="s2" class="section">
+<pre style="background:#1e1e3f;padding:15px;border-radius:8px;overflow-x:auto;font-size:13px">
+┌─────────────────────────────────────────────────────────────────┐
+│                        推理时（单步）                              │
+│                                                                  │
+│  ┌──────────┐     ┌───────────────────────────────────────┐     │
+│  │ 当前观测  │────▶│  Diffusion Policy (DDIM 10步去噪)      │     │
+│  │ 200×200  │     │                                       │     │
+│  └──────────┘     │  for k in timesteps:                  │     │
+│       │           │    for ss in range(4):                │     │
+│       │           │      ε = UNet(a_noisy, k, obs)        │     │
+│       ▼           │      grad = guidance(obs, a_noisy)    │◀──┐ │
+│  ┌──────────┐     │      ε -= √(1-ᾱ_k) × grad           │   │ │
+│  │ Dynamics │     │      a = DDIM_step(ε, k, a)          │   │ │
+│  │  Model   │─────│───────────────────────────────────────│───┘ │
+│  │ (DINOv2  │     │  输出: action_chunk [16, 7]           │     │
+│  │  +Trans) │     └───────────────────────────────────────┘     │
+│  └──────────┘                                                    │
+│       ▲                                                          │
+│       │                                                          │
+│  ┌──────────┐  预计算                                            │
+│  │ 目标demo │────────▶ good_embeddings [20, D]                   │
+│  │ 20条hdf5 │         (DINOv2 latent of goal states)             │
+│  └──────────┘                                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     训练时（完全独立）                              │
+│                                                                  │
+│  ABCD split ──▶ Dynamics Model 训练 (MSE in DINO latent space)  │
+│  D split    ──▶ Base Policy 训练 (standard DP training)          │
+└─────────────────────────────────────────────────────────────────┘
+</pre>
+</div>
+
+<h2 onclick="toggle('s3')">3. 引导链路：从 obs 到 guided action</h2>
+<div id="s3" class="section">
+<h3>Step 1: 预计算目标 embeddings（一次性）</h3>
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: core/dynaguide.py → calculate_classifier_guidance()
+
+输入: 20条 switch_on demo 的 HDF5
+处理: 对每条demo取最后一帧的(obs_image, action_chunk)
+      → dynamics_model.state_action_embedding(obs, action)
+      → flatten → [1, D]
+输出: good_embeddings [20, D] 存在GPU上
+
+注意: 不是简单的"目标图像特征"，而是"达到目标时的(状态,动作)联合编码"
+      这编码了"什么状态+什么动作→目标结果"的因果信息
+</pre>
+
+<h3>Step 2: 每步推理时计算梯度</h3>
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: core/dynaguide.py → guidance() 闭包
+
+输入: 当前 obs + 候选 noisy actions (来自DDIM中间状态)
+处理:
+  1. predicted_z = model.state_action_embedding(obs, actions)  # 预测未来latent
+  2. dist = cdist(good_embeddings, predicted_z)                # [20, 1] 距离矩阵
+  3. energy = logsumexp(-dist / alpha)                         # smooth minimum
+  4. grad = autograd.grad(energy, actions)                     # 对actions求梯度
+  5. grad *= scale                                             # scale=1.5
+输出: gradient [1, 16, 7] — 引导方向
+
+直觉: "如果这个动作会导致未来状态接近目标demo的ending → 梯度让actions更朝这个方向走"
+</pre>
+
+<h3>Step 3: 注入 DDIM 去噪</h3>
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: robomimic/.../diffusion_policy.py → _get_action_trajectory_guidance()
+
+标准 DDIM:     ε_pred = UNet(a_t, t, obs)
+加引导后:      ε_pred = UNet(a_t, t, obs) - √(1-ᾱ_t) × guidance_grad
+
+这就是 Classifier Guidance 的标准公式:
+  score(a|goal) = score(a) + s×∇_a log p(goal|a)
+  对应到噪声空间: ε_guided = ε - √(1-ᾱ) × ∇_a log p(goal|a)
+
+ss=4: 在同一个 timestep 重复4次（预测→引导→step），相当于更强的引导
+     但只对前几个timestep生效（后面的√(1-ᾱ)很小，引导自然衰减）
+</pre>
+</div>
+
+<h2 onclick="toggle('s4')">4. 动态模型 (FinalStatePredictionDino)</h2>
+<div id="s4" class="section">
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: core/dynamics_models.py
+
+架构:
+  Image → DINOv2 ViT-S/14 (冻结) → 256个patch tokens [B, 256, 384]
+  Action chunk [B, 16, 7] → Linear embedding → [B, 16, 384]
+  Proprio [B, 15] → Linear → [B, 1, 384]
+  
+  Concat: [256 + 16 + 1] = 273 tokens
+  + Positional Embedding [1, 258, 384]
+  → 6层 Transformer Encoder (8头, dim=384)
+  → 取前256 tokens → z_hat [B, 256, 384]  (预测的未来DINO patch embedding)
+
+训练:
+  Loss = MSE(z_hat, DINOv2(future_image)) + MSE(VQVAE_decode(z_hat), future_image)
+  
+  第二项(reconstruction)的梯度被detach——只用来监控训练质量，不反传到主loss
+
+关键设计:
+  - DINOv2 完全冻结（不微调）
+  - 只训 Transformer + ActionEmbedding + ProprioEmbedding
+  - 参数量 ≈ 15M（轻量，单3090训24-48h）
+  - 输入输出都在 DINO patch token 空间（384维 × 256 patches）
+</pre>
+</div>
+
+<h2 onclick="toggle('s5')">5. 超参数的实际意义</h2>
+<div id="s5" class="section">
+<table style="width:100%;border-collapse:collapse;margin:10px 0">
+<tr style="background:#2d2d44"><th style="padding:8px;text-align:left">参数</th><th>默认值</th><th>实际控制什么</th><th>过大后果</th><th>过小后果</th></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333"><code>scale</code></td><td>1.5</td><td>梯度的整体缩放倍数</td><td>动作跳出policy可执行范围→乱动</td><td>引导力度不够→行为仍分散</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333"><code>ss</code></td><td>4</td><td>每个DDIM step重复引导的次数</td><td>计算量翻倍+后期过度干扰精修</td><td>引导不够持久</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333"><code>alpha</code></td><td>30</td><td>logsumexp温度：多少demo贡献引导</td><td>所有demo等权→信号被平均稀释</td><td>只看最近demo→对异常demo敏感</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333"><code>horizon</code></td><td>400</td><td>单rollout最大步数</td><td>—</td><td>任务没完成就停了</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333"><code>n_rollouts</code></td><td>100</td><td>统计样本量</td><td>—</td><td>统计量波动大</td></tr>
+</table>
+</div>
+
+<h2 onclick="toggle('s6')">6. 训练动态模型</h2>
+<div id="s6" class="section">
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: train_dynaguide.py
+
+命令:
+  python train_dynaguide.py --exp_dir &lt;output&gt; \
+    --train_hdf5 &lt;calvin_ABCD_dynamics.hdf5&gt; \
+    --test_hdf5 &lt;calvin_val.hdf5&gt; \
+    --cameras third_person --action_dim 7 \
+    --proprio_key proprio --proprio_dim 15 \
+    --num_epochs 6000 --action_chunk_length 16 --batch_size 16
+
+数据格式 (MultiviewDataset):
+  HDF5: data/demo_X/obs/{third_person, proprio, states}, actions
+  每条demo被切成 (obs_t, action_chunk[t:t+16], obs_{t+16}) 三元组
+  action_chunk 不够长时用最后一步 padding
+
+训练trick:
+  - 对 action_chunk 加高斯噪声 (--noise_augmentation)
+    模拟推理时DDIM中间步的noisy actions
+    让dynamics model对噪声actions也能给出合理预测
+  - 学习率: 1e-4 (Adam)
+  - 每40个epoch做一次validation + filmstrip可视化
+</pre>
+</div>
+
+<h2 onclick="toggle('s7')">7. 数据处理流程 (生成 guidance conditions)</h2>
+<div id="s7" class="section">
+<pre style="background:#1e1e3f;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">
+文件: data_processing_calvin/
+
+Step 1: calvin_to_labeled_hdf5.py
+  输入: CALVIN 原始 npz (episode_XXXXXXX.npz)
+  处理: 按 task annotations 切段，标注行为类别
+  输出: 分段后的 HDF5 (每段一个demo，标注行为标签)
+
+Step 2: split_behavioral_validation_datasets_calvin.py
+  输入: Step 1 的 validation HDF5
+  处理: 按行为类别拆分成单独文件
+  输出: switch_on_20.hdf5, button_off_20.hdf5, ... (每类取20条)
+
+Step 3: hdf5_combiner.py
+  输入: 单行为 HDF5 文件
+  处理: 合并/筛选/设定每行为条数
+  输出: 最终的 guidance conditions HDF5 (用于推理)
+
+我们当前只有作者提供的 switch_on guidance (20条)
+其余7个任务需要等 CALVIN 数据集下完后自行生成
+</pre>
+</div>
+
+<h2 onclick="toggle('s8')">8. VLMGuide 改造切入点</h2>
+<div id="s8" class="section">
+<table style="width:100%;border-collapse:collapse;margin:10px 0">
+<tr style="background:#2d2d44"><th style="padding:8px;text-align:left">改造内容</th><th>改哪个文件</th><th>改什么</th><th>难度</th></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333">VLM生成g+</td><td>run_dynaguide.py:323</td><td>替换 good_dataset 来源：HDF5 → VLM生成图像</td><td>低</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333">闭环目标演化</td><td>run_dynaguide.py:rollout()</td><td>在step循环中加失败检测→重新算good_embeddings</td><td>中</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333">负目标累积</td><td>core/dynaguide.py:guidance()</td><td>每次失败后append到bad_embeddings</td><td>低</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333">不确定性自适应</td><td>core/dynaguide.py:guidance()</td><td>加ensemble/MC-dropout估计→动态调scale</td><td>中</td></tr>
+<tr><td style="padding:8px;border-bottom:1px solid #333">迁移flow matching</td><td>diffusion_policy.py</td><td>替换DDIM去噪为flow ODE + 修改注入公式</td><td>高</td></tr>
+</table>
+</div>
+
+<h2 onclick="toggle('s9')">9. 关键问答</h2>
+<div id="s9" class="section">
+<h3>Q: DynaGuide 能解决 OOD 吗？</h3>
+<p>不能。它只能在 base policy 已有的动作分布内做选择。如果 policy 从未见过某个动作模式，梯度推不出分布外的动作。</p>
+
+<h3>Q: alpha=30 是"annealing"吗？</h3>
+<p>不是时间维度的衰减。alpha 是 logsumexp 的温度参数，控制"对 20 条目标 demo 的距离做 smooth minimum 的程度"。时间衰减是通过 √(1-ᾱ_k) 自然实现的（DDIM 后期这个值趋近 0）。</p>
+
+<h3>Q: 为什么 ss=4 比 ss=1 好？</h3>
+<p>ss=1 只在每个 timestep 引导一次就 step。ss=4 在同一 timestep 反复"引导→step"4次，相当于更深入地优化这步的动作方向。但 ss>4 收益递减（后期 DDIM step 本身变化小了）。</p>
+
+<h3>Q: guidance 是对整个 action chunk 施加的？</h3>
+<p>是。梯度 shape = [1, 16, 7]，16步中的每一步动作都被引导。dynamics model 看到完整 16步 action chunk 后预测未来，所以梯度反传到每一步。</p>
+
+<h3>Q: 为什么预训练权重 Success_Rate=0 但实际有 80% 触发 switch？</h3>
+<p>robomimic 的 env.is_success() 不知道当前任务是 switch_on（DynaGuide 通过 env_setup 设置初始条件但没定义 task）。真正的成功判据是事后从 states 数据中算 switch delta。</p>
+</div>
+
+</div>
+
+<script>
+function toggle(id){var e=document.getElementById(id);e.classList.toggle('active')}
+function toggleAll(show){document.querySelectorAll('.section').forEach(s=>{show?s.classList.add('active'):s.classList.remove('active')})}
+</script>
+</body>
+</html>

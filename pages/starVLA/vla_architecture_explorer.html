@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VLA 架构学习 - StarVLA Interactive Explorer</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d2e;
+  --surface2: #252940;
+  --border: #2d3348;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --accent: #60a5fa;
+  --accent2: #a78bfa;
+  --green: #34d399;
+  --orange: #fb923c;
+  --red: #f87171;
+  --pink: #f472b6;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+header { text-align: center; padding: 40px 0 30px; }
+header h1 { font-size: 2.2em; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+header p { color: var(--text-dim); margin-top: 8px; }
+
+/* Tabs */
+.tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 0; }
+.tab { padding: 12px 24px; cursor: pointer; border-radius: 8px 8px 0 0; background: transparent; color: var(--text-dim); border: 1px solid transparent; border-bottom: none; transition: all 0.2s; font-size: 0.95em; }
+.tab:hover { color: var(--text); background: var(--surface); }
+.tab.active { background: var(--surface); color: var(--accent); border-color: var(--border); font-weight: 600; }
+
+/* Panels */
+.panel { display: none; animation: fadeIn 0.3s; }
+.panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Cards */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; }
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.card h3 { color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.card p { color: var(--text-dim); font-size: 0.9em; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; font-weight: 600; }
+.badge-blue { background: rgba(96,165,250,0.15); color: var(--accent); }
+.badge-purple { background: rgba(167,139,250,0.15); color: var(--accent2); }
+.badge-green { background: rgba(52,211,153,0.15); color: var(--green); }
+.badge-orange { background: rgba(251,146,60,0.15); color: var(--orange); }
+
+/* Architecture Diagram */
+.arch-diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 30px; margin: 20px 0; }
+.arch-row { display: flex; justify-content: center; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+.arch-box { padding: 14px 20px; border-radius: 8px; text-align: center; min-width: 140px; cursor: pointer; transition: all 0.2s; position: relative; }
+.arch-box:hover { transform: scale(1.05); }
+.arch-box.backbone { background: linear-gradient(135deg, rgba(96,165,250,0.2), rgba(96,165,250,0.05)); border: 1px solid var(--accent); }
+.arch-box.action-head { background: linear-gradient(135deg, rgba(167,139,250,0.2), rgba(167,139,250,0.05)); border: 1px solid var(--accent2); }
+.arch-box.input { background: linear-gradient(135deg, rgba(52,211,153,0.2), rgba(52,211,153,0.05)); border: 1px solid var(--green); }
+.arch-box.output { background: linear-gradient(135deg, rgba(251,146,60,0.2), rgba(251,146,60,0.05)); border: 1px solid var(--orange); }
+.arch-box small { display: block; color: var(--text-dim); font-size: 0.8em; margin-top: 4px; }
+.arrow { text-align: center; color: var(--text-dim); font-size: 1.5em; margin: 4px 0; }
+.arrow-label { font-size: 0.75em; color: var(--text-dim); }
+
+/* Detail Panel */
+.detail-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 30px; margin-top: 20px; display: none; }
+.detail-panel.show { display: block; animation: fadeIn 0.3s; }
+.detail-panel h2 { color: var(--accent); margin-bottom: 16px; }
+.detail-panel pre { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 0.85em; line-height: 1.5; }
+.detail-panel code { color: var(--green); }
+.detail-panel .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.detail-panel .meta-item { background: var(--surface2); padding: 12px; border-radius: 8px; }
+.detail-panel .meta-item label { color: var(--text-dim); font-size: 0.8em; display: block; }
+.detail-panel .meta-item span { font-weight: 600; }
+.close-btn { float: right; background: none; border: none; color: var(--text-dim); font-size: 1.5em; cursor: pointer; }
+.close-btn:hover { color: var(--text); }
+
+/* Comparison Table */
+table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--accent); font-weight: 600; background: var(--surface2); }
+td { font-size: 0.9em; }
+tr:hover td { background: rgba(96,165,250,0.05); }
+.highlight { color: var(--green); font-weight: 600; }
+
+/* Flow section */
+.flow-step { display: flex; align-items: flex-start; gap: 16px; margin: 16px 0; padding: 16px; background: var(--surface); border-radius: 8px; border-left: 3px solid var(--accent); }
+.flow-step .num { background: var(--accent); color: var(--bg); width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85em; flex-shrink: 0; }
+.flow-step .content h4 { margin-bottom: 4px; }
+.flow-step .content p { color: var(--text-dim); font-size: 0.9em; }
+
+/* Quiz */
+.quiz-section { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 20px 0; }
+.quiz-q { margin-bottom: 16px; }
+.quiz-q h4 { margin-bottom: 12px; }
+.quiz-option { display: block; padding: 10px 16px; margin: 6px 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+.quiz-option:hover { border-color: var(--accent); }
+.quiz-option.correct { border-color: var(--green); background: rgba(52,211,153,0.1); }
+.quiz-option.wrong { border-color: var(--red); background: rgba(248,113,113,0.1); }
+.quiz-feedback { margin-top: 8px; padding: 10px; border-radius: 8px; font-size: 0.9em; display: none; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tabs { flex-wrap: wrap; }
+  .card-grid { grid-template-columns: 1fr; }
+  .detail-panel .meta { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>VLA 架构交互式学习</h1>
+  <p>基于 StarVLA 代码库，带你理解主流 Vision-Language-Action 模型的模块化设计</p>
+  <p style="margin-top:8px"><a href="code_walkthrough.html" style="color:#60a5fa;text-decoration:none;border:1px solid #2d3348;padding:6px 16px;border-radius:6px;font-size:0.9em">📖 OpenPI & StarVLA 代码精读课 →</a></p>
+</header>
+
+<div class="tabs">
+  <div class="tab active" data-tab="overview">整体架构</div>
+  <div class="tab" data-tab="backbones">Backbone 层</div>
+  <div class="tab" data-tab="action-heads">Action Head 层</div>
+  <div class="tab" data-tab="dataflow">训练数据流</div>
+  <div class="tab" data-tab="deepdive">深度数据流</div>
+  <div class="tab" data-tab="compare">方法对比</div>
+  <div class="tab" data-tab="openpi">OpenPI 对比</div>
+  <div class="tab" data-tab="quiz">自测</div>
+</div>
+
+<!-- Panel: Overview -->
+<div class="panel active" id="panel-overview">
+  <h2 style="margin-bottom:16px">核心设计：Backbone-Action Head 分解</h2>
+  <p style="color:var(--text-dim);margin-bottom:20px">VLA 系统被拆解为两个通过标准化隐状态契约连接的可替换模块。点击任意模块查看详情。</p>
+
+  <div class="arch-diagram">
+    <div class="arch-row">
+      <div class="arch-box input" onclick="showDetail('input')">多视角 RGB<small>images: List[PIL]</small></div>
+      <div class="arch-box input" onclick="showDetail('input')">语言指令<small>lang: str</small></div>
+      <div class="arch-box input" onclick="showDetail('input')">本体感觉<small>state: [1, dim]</small></div>
+    </div>
+    <div class="arrow">&#8595;</div>
+
+    <div class="arch-row">
+      <div class="arch-box backbone" onclick="showDetail('vlm')">VLM Backbone<small>Qwen-VL / Gemma4 / MiniCPM</small></div>
+      <div class="arch-box backbone" onclick="showDetail('wm')">World Model Backbone<small>Wan2.2 / CosmoPredict2</small></div>
+    </div>
+    <div class="arrow">&#8595; <span class="arrow-label">hidden_states [B, L, H]</span></div>
+
+    <div class="arch-row">
+      <div class="arch-box action-head" onclick="showDetail('fast')">FAST<small>自回归Token</small></div>
+      <div class="arch-box action-head" onclick="showDetail('oft')">OFT<small>MLP并行回归</small></div>
+      <div class="arch-box action-head" onclick="showDetail('groot')">GR00T<small>Flow-Matching DiT</small></div>
+      <div class="arch-box action-head" onclick="showDetail('pi')">PI (π)<small>层级Cross-DiT</small></div>
+    </div>
+    <div class="arrow">&#8595;</div>
+
+    <div class="arch-row">
+      <div class="arch-box output">动作 Chunk<small>[B, T, action_dim]</small></div>
+    </div>
+  </div>
+
+  <div class="detail-panel" id="detail-panel">
+    <button class="close-btn" onclick="hideDetail()">&times;</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<!-- Panel: Backbones -->
+<div class="panel" id="panel-backbones">
+  <h2 style="margin-bottom:16px">Backbone 层：感知与理解</h2>
+  <p style="color:var(--text-dim);margin-bottom:20px">Backbone 负责将原始多模态输入编码为丰富的隐状态表示，供 Action Head 消费。</p>
+
+  <h3 style="margin:20px 0 12px;color:var(--accent)">VLM Backbone（基于预训练视觉-语言模型）</h3>
+  <div class="card-grid">
+    <div class="card" onclick="showDetail('qwen')">
+      <h3><span class="badge badge-blue">主力</span> Qwen2.5-VL / Qwen3-VL</h3>
+      <p>3B-4B 参数，36层 Transformer，hidden_dim=2048。支持动态分辨率，原生多图输入。StarVLA 大部分实验基于此。</p>
+      <div style="margin-top:12px;font-size:0.8em;color:var(--text-dim)">代码: modules/vlm/QWen2_5.py, QWen3.py</div>
+    </div>
+    <div class="card">
+      <h3><span class="badge badge-green">轻量</span> Gemma4</h3>
+      <p>Google 的 4B 视觉-语言模型。适合对比不同 VLM backbone 对动作预测的影响。</p>
+      <div style="margin-top:12px;font-size:0.8em;color:var(--text-dim)">代码: modules/vlm/Gemma4.py</div>
+    </div>
+    <div class="card">
+      <h3><span class="badge badge-green">轻量</span> MiniCPM-V</h3>
+      <p>2.4B 参数，28层，hidden_dim=2304。国产高效 VLM，适合资源受限场景。</p>
+      <div style="margin-top:12px;font-size:0.8em;color:var(--text-dim)">代码: modules/vlm/MiniCPM_V.py</div>
+    </div>
+  </div>
+
+  <h3 style="margin:30px 0 12px;color:var(--accent2)">World Model Backbone（基于视频生成模型）</h3>
+  <div class="card-grid">
+    <div class="card">
+      <h3><span class="badge badge-purple">WM</span> Wan2.2-TI2V-5B</h3>
+      <p>阿里万相 Text+Image→Video 模型。30层 DiT，hidden_dim=3072。用 UMT5 编码文本，VAE 编码图像。</p>
+      <div style="margin-top:12px;font-size:0.8em;color:var(--text-dim)">代码: modules/world_model/Wan2.py</div>
+    </div>
+    <div class="card">
+      <h3><span class="badge badge-purple">WM</span> CosmoPredict2-2B</h3>
+      <p>NVIDIA Cosmos 系列预测模型。24层，hidden_dim=2048。面向物理世界预测。</p>
+      <div style="margin-top:12px;font-size:0.8em;color:var(--text-dim)">代码: modules/world_model/CosmoPredict2.py</div>
+    </div>
+  </div>
+
+  <div style="margin-top:30px;padding:20px;background:var(--surface);border-radius:12px;border:1px solid var(--border)">
+    <h4 style="margin-bottom:12px">VLM vs World Model 做 VLA Backbone 的区别</h4>
+    <table>
+      <tr><th>维度</th><th>VLM Backbone</th><th>World Model Backbone</th></tr>
+      <tr><td>预训练目标</td><td>图文对齐 + 语言生成</td><td>未来帧预测（时空建模）</td></tr>
+      <tr><td>输入处理</td><td>Vision Encoder → Projector → LLM</td><td>VAE Encoder → DiT</td></tr>
+      <tr><td>隐状态语义</td><td>高级语义（对象、关系、意图）</td><td>动态物理（运动、接触、变形）</td></tr>
+      <tr><td>优势场景</td><td>语言驱动、多任务泛化</td><td>接触丰富、需要物理预测</td></tr>
+      <tr><td>代表方法</td><td>OpenVLA, π₀, GR00T</td><td>Cosmos Policy, UniSim</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- Panel: Action Heads -->
+<div class="panel" id="panel-action-heads">
+  <h2 style="margin-bottom:16px">Action Head 层：四大范式</h2>
+  <p style="color:var(--text-dim);margin-bottom:20px">Action Head 将 backbone 的隐状态转换为机器人可执行的动作序列。点击卡片查看内部结构。</p>
+
+  <div class="card-grid">
+    <div class="card" onclick="showActionHead('fast')">
+      <h3><span class="badge badge-green">AR</span> FAST - 自回归离散 Token</h3>
+      <p><b>原理</b>：将连续动作 BPE 编码为离散 token，复用 LLM 的 next-token 预测。</p>
+      <p style="margin-top:8px"><b>代表</b>：π₀-FAST, RT-2</p>
+      <p style="margin-top:8px;font-size:0.8em;color:var(--green)">参数量最小 | 推理慢（自回归）| 适合语言-动作联合</p>
+    </div>
+    <div class="card" onclick="showActionHead('oft')">
+      <h3><span class="badge badge-orange">REG</span> OFT - MLP 并行回归</h3>
+      <p><b>原理</b>：从 hidden states 中提取特征，MLP 直接回归连续动作值（L1 Loss）。</p>
+      <p style="margin-top:8px"><b>代表</b>：OpenVLA-OFT</p>
+      <p style="margin-top:8px;font-size:0.8em;color:var(--orange)">最简单 | 推理最快 | 数据效率高 | 单峰假设</p>
+    </div>
+    <div class="card" onclick="showActionHead('groot')">
+      <h3><span class="badge badge-blue">FM</span> GR00T - 单源 Cross-DiT Flow-Matching</h3>
+      <p><b>原理</b>：Cross-DiT 做流匹配，所有 DiT 层共享 VLM 最后一层 hidden_state 作为 KV。</p>
+      <p style="margin-top:8px"><b>代表</b>：GR00T N1.5, CogACT</p>
+      <p style="margin-top:8px;font-size:0.8em;color:var(--accent)">多模态分布 | 推理需迭代 | DiT 深度自由 | 单一语义条件</p>
+    </div>
+    <div class="card" onclick="showActionHead('pi')">
+      <h3><span class="badge badge-purple">LW-FM</span> PI (π₀) - 层级对齐 Cross-DiT</h3>
+      <p><b>原理</b>：DiT 第 i 层 cross-attend 到 VLM 第 i 层，多尺度特征融合做流匹配。</p>
+      <p style="margin-top:8px"><b>代表</b>：π₀</p>
+      <p style="margin-top:8px;font-size:0.8em;color:var(--accent2)">最强表达力 | 多尺度空间+语义 | DiT层数=VLM层数</p>
+    </div>
+  </div>
+
+  <div id="action-head-detail" class="detail-panel"></div>
+
+  <div style="margin-top:30px;padding:24px;background:var(--surface);border-radius:12px;border:1px solid var(--border)">
+    <h4 style="margin-bottom:16px;color:var(--accent)">关键设计选择：用哪一层 VLM 的 token？</h4>
+    <p style="color:var(--text-dim);margin-bottom:16px">不同 VLA 方法取 VLM 隐状态的方式截然不同，反映各自的设计假设：</p>
+    <table>
+      <tr><th>方法</th><th>取哪些层</th><th>怎么用</th><th>设计假设</th></tr>
+      <tr><td><b>GR00T</b></td><td>仅最后一层<br><code>hidden_states[-1]</code></td><td>所有 DiT 层 cross-attn 共享同一 KV</td><td>最终表示已充分融合视觉+语言，够用</td></tr>
+      <tr><td><b>PI (π₀)</b></td><td>最后 N 层<br><code>hidden_states[-N:]</code></td><td>第 i 层 DiT cross-attend 到第 i 层 VLM</td><td>不同深度编码不同粒度，精确操作需要全部</td></tr>
+      <tr><td><b>FAST</b></td><td>不显式取</td><td>动作在 LLM 内部自回归生成，所有层天然参与</td><td>动作就是语言序列的延续</td></tr>
+      <tr><td><b>OFT</b></td><td>最后层中<b>特定 token 位置</b></td><td>MLP 从对应位置直接回归</td><td>action token 位置已聚合足够信息</td></tr>
+    </table>
+    <pre style="margin-top:16px"><code># GR00T (QwenGR00T.py) — 只取最后层
+last_hidden = qwenvl_outputs.hidden_states[-1]
+
+# PI (QwenPI.py) — 取最后 N 层，N = DiT 层数
+expected_layers = len(self.action_model.model.transformer_blocks)
+vl_embs_list = list(qwenvl_outputs.hidden_states[-expected_layers:])</code></pre>
+    <p style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:0.9em"><b>实验启示：</b>从 StarVLA 的 LIBERO 结果看，OFT（仅最后层）96.6% 略胜 PI（全层）95.7%，说明简单桌面任务上多尺度特征收益不明显。PI 的优势可能要在需要空间精度的精细接触操作中才能体现。</p>
+  </div>
+
+  <div style="margin-top:20px;padding:24px;background:var(--surface);border-radius:12px;border:1px solid var(--border)">
+    <h4 style="margin-bottom:16px;color:var(--accent2)">VLM 在 VLA 中的角色：只是条件编码器吗？</h4>
+    <p style="color:var(--text-dim);margin-bottom:16px">VLM 在不同 action head 中扮演的角色不完全相同：</p>
+    <table>
+      <tr><th>Action Head</th><th>VLM 的角色</th><th>类比</th></tr>
+      <tr><td><b>GR00T / PI</b></td><td>纯条件编码器。VLM 输出 hidden states，action DiT 通过 cross-attn 以此为条件生成动作</td><td>Stable Diffusion 中 CLIP text encoder</td></tr>
+      <tr><td><b>OFT</b></td><td>条件编码器 + 特征提取器。最后层特定 token 位置被 MLP 直接读取</td><td>BERT + classification head</td></tr>
+      <tr><td><b>FAST</b></td><td><b>不是</b>条件编码器——VLM 本身就是动作生成器。动作 token 在 LLM 内部自回归生成</td><td>GPT 生成文本，动作是文本的延续</td></tr>
+    </table>
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
+        <b style="font-size:0.85em">Flow-matching 类 (GR00T/PI)</b>
+        <p style="font-size:0.85em;color:var(--text-dim);margin-top:4px">VLM = 条件编码器，和文生图的 text encoder 完全类比。可以冻结 VLM 只训练 action head。</p>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--green)">
+        <b style="font-size:0.85em">FAST（自回归）</b>
+        <p style="font-size:0.85em;color:var(--text-dim);margin-top:4px">VLM 既是编码器也是生成器，不可分。因果注意力让图像/语言 token 自然 condition 动作 token。必须微调整个 VLM。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Panel: Deep Dive -->
+<div class="panel" id="panel-deepdive">
+  <h2 style="margin-bottom:16px">深度数据流：从像素到动作的完整路径</h2>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent);margin-bottom:16px">1. VLM Encoder 内部结构（Qwen2.5-VL）</h3>
+    <pre style="font-size:0.82em;line-height:1.5"><code>┌─────────────────────────────────────────────────────────────────────┐
+│                      Qwen2.5-VL 内部结构                             │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐                              │
+│  │  RGB Image   │    │ Text Prompt  │                              │
+│  │ [H, W, 3]   │    │ "pick up..." │                              │
+│  └──────┬───────┘    └──────┬───────┘                              │
+│         ▼                    ▼                                      │
+│  ┌──────────────┐    ┌──────────────┐                              │
+│  │ Vision Encoder│    │  Tokenizer   │                              │
+│  │ (ViT-600M)  │    │ (BPE 152064) │                              │
+│  │ Patch=14x14  │    └──────┬───────┘                              │
+│  └──────┬───────┘           │                                      │
+│         ▼                    ▼                                      │
+│  ┌──────────────────────────────────────┐                          │
+│  │     Token Sequence 拼接              │                          │
+│  │ [img_tokens | text_tokens]           │                          │
+│  │ 形状: [B, L, 2048]                  │                          │
+│  └──────────────────┬───────────────────┘                          │
+│                     ▼                                              │
+│  ┌──────────────────────────────────────┐                          │
+│  │    36 层 Transformer Decoder         │                          │
+│  │                                      │                          │
+│  │  每层:                               │                          │
+│  │    LayerNorm                         │                          │
+│  │    Causal Self-Attention (GQA)       │ ← 因果掩码              │
+│  │      Q: [B,L,2048] K/V: [B,L,2048] │ ← GQA: Q头>KV头         │
+│  │      Attn = softmax(QK^T/√d) · V   │                          │
+│  │    Residual + LayerNorm             │                          │
+│  │    FFN (SwiGLU)                     │                          │
+│  │    Residual                         │                          │
+│  │              × 36 层                │                          │
+│  │                                      │                          │
+│  │  输出: hidden_states[0..36]         │                          │
+│  │    每层: [B, L, 2048]              │                          │
+│  └──────────────────┬───────────────────┘                          │
+└─────────────────────┼───────────────────────────────────────────────┘
+                      ▼
+        GR00T 取: hidden_states[-1]  → [B, L, 2048]
+        PI 取:    hidden_states[-36:]→ 36 × [B, L, 2048]</code></pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent2);margin-bottom:16px">2. KV Cache 是什么？</h3>
+    <p style="margin-bottom:12px">KV Cache 是 Transformer 自回归推理的加速机制。缓存已计算的 K/V 向量，新 token 只需算自己的 Q 与缓存做 attention。</p>
+    <pre style="font-size:0.82em"><code>普通推理（无 cache）:                有 KV Cache:
+Step 1: 算 [t1] 全部 K,V,Q           Step 1: 算 [t1] K,V,Q → 存 cache
+Step 2: 算 [t1,t2] 全部 K,V,Q       Step 2: 只算 [t2] 的 Q, 读 cache
+Step 3: 算 [t1,t2,t3] 全部 K,V,Q    Step 3: 只算 [t3] 的 Q, 读 cache
+→ 每步重算全序列 O(L²)              → 每步只算增量 O(L)</code></pre>
+    <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;border-top:3px solid var(--green)">
+        <b style="font-size:0.85em">FAST</b>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:4px">使用 KV Cache — 动作 token 是自回归生成的，和 LLM 生成文本一样</p>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;border-top:3px solid var(--accent)">
+        <b style="font-size:0.85em">GR00T / PI / OFT</b>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:4px">不使用 KV Cache — VLM 做单次前向拿 hidden_states，不逐 token 生成</p>
+      </div>
+      <div style="padding:12px;background:var(--surface2);border-radius:8px;border-top:3px solid var(--orange)">
+        <b style="font-size:0.85em">部署时 VLM Cache</b>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:4px">固定 prompt 的 KV Cache 可复用，加速多次推理（prefix caching）</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--green);margin-bottom:16px">3. VLM 知识怎么传递给 Action Head？</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+      <div style="padding:16px;background:var(--surface2);border-radius:8px">
+        <h4 style="color:var(--accent);margin-bottom:8px">Cross-Attention<br><small style="color:var(--text-dim)">(GR00T / PI)</small></h4>
+        <pre style="font-size:0.78em"><code>Action tokens → Q
+VLM states   → K, V
+
+Attn = softmax(Q·K^T/√d)·V
+↓
+Action tokens 获得
+VLM 视觉/语言知识</code></pre>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px">Action tokens "提问"，VLM 提供 "答案"。注意力权重自动选择相关信息。</p>
+      </div>
+      <div style="padding:16px;background:var(--surface2);border-radius:8px">
+        <h4 style="color:var(--orange);margin-bottom:8px">直接特征提取<br><small style="color:var(--text-dim)">(OFT)</small></h4>
+        <pre style="font-size:0.78em"><code>VLM states [B, L, H]
+      ↓
+选取特定 token 位置
+      ↓
+features [B, T, H]
+      ↓
+MLP → actions</code></pre>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px">预定义的 action token 位置通过因果注意力已聚合了上下文信息。</p>
+      </div>
+      <div style="padding:16px;background:var(--surface2);border-radius:8px">
+        <h4 style="color:var(--green);margin-bottom:8px">内嵌生成<br><small style="color:var(--text-dim)">(FAST)</small></h4>
+        <pre style="font-size:0.78em"><code>[img|txt|&lt;act_start&gt;]
+         ↓ 自回归
+[...|&lt;a1&gt;|&lt;a2&gt;|...]
+
+因果注意力让动作
+token attend 到
+所有前面的 token</code></pre>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px">没有显式"传递"——动作生成天然看到所有观测。</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent);margin-bottom:16px">4. DiT 用在哪？怎么用？</h3>
+    <p style="margin-bottom:12px">DiT 在 StarVLA 中用作 <b>Action Head 的去噪网络</b>（GR00T 和 PI 方法）。给定噪声动作 + 时间步 + VLM 条件，预测速度场来去噪。</p>
+    <pre style="font-size:0.82em;line-height:1.5"><code>┌─────────────────────────────────────────────────────────────────┐
+│               DiT 内部 (GR00T: 16层, 交替结构)                   │
+├─────────────────────────────────────────────────────────────────┤
+│  输入拼接: [state_token | 32×future_tokens | action_tokens]     │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  偶数层 (0,2,4...): Cross-Attention                      │  │
+│  │    AdaNorm(hidden, timestep_emb) ← 时间步调制 scale/shift │  │
+│  │    Attn(Q=hidden, K=VLM_features, V=VLM_features)        │  │
+│  │    ↑ action tokens 从 VLM 获取视觉/语言信息               │  │
+│  │    FFN (GELU) + Residual                                 │  │
+│  ├───────────────────────────────────────────────────────────┤  │
+│  │  奇数层 (1,3,5...): Self-Attention                       │  │
+│  │    AdaNorm(hidden, timestep_emb)                         │  │
+│  │    Attn(Q=K=V=hidden) ← action tokens 间互相推理         │  │
+│  │    FFN (GELU) + Residual                                 │  │
+│  └───────────────────────────────────────────────────────────┘  │
+│                    × 16 层                                      │
+│                                                                 │
+│  输出: AdaNorm → Linear → 取最后 T 个 → MLP → [B,T,action_dim] │
+└─────────────────────────────────────────────────────────────────┘
+
+关键设计:
+• AdaNorm: timestep embedding 调制归一化 (不同噪声水平→不同行为)
+• 交替结构: cross-attn(取条件) ↔ self-attn(动作间推理)
+• future_tokens: 32个可学习"规划槽"给 DiT 额外计算空间</code></pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent2);margin-bottom:16px">5. Flow Matching 用在哪？怎么用？</h3>
+    <p style="margin-bottom:12px">Flow Matching 是 DiT 的<b>训练目标和推理采样算法</b>。定义了"从噪声到动作"的直线路径，训练 DiT 预测该路径的速度场。</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="padding:16px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--green)">
+        <h4 style="margin-bottom:8px">训练</h4>
+        <pre style="font-size:0.8em"><code># 采样噪声和时间步
+noise ~ N(0,1)
+t ~ Beta(1.5, 1.0), t∈[0, 0.999]
+
+# 线性插值构造 noisy action
+noisy = (1-t)·noise + t·action
+
+# 真实速度 (训练标签)
+velocity_true = action - noise
+
+# DiT 预测
+velocity_pred = DiT(noisy, t, VLM)
+
+# 损失
+loss = MSE(pred, true)</code></pre>
+      </div>
+      <div style="padding:16px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
+        <h4 style="margin-bottom:8px">推理 (Euler ODE, 4步)</h4>
+        <pre style="font-size:0.8em"><code># 从纯噪声出发
+action = randn(B, T, 7)
+
+# 4步积分到干净动作
+for t in [0, 0.25, 0.5, 0.75]:
+  v = DiT(action, t, VLM)
+  action += 0.25 × v
+
+# 最终动作
+return action  # [B, T, 7]</code></pre>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px">仅需 4 次 DiT 前向！</p>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <h4 style="margin-bottom:8px">Flow Matching vs DDPM Diffusion</h4>
+      <table>
+        <tr><th></th><th>Flow Matching (GR00T/PI)</th><th>DDPM Diffusion (CogACT)</th></tr>
+        <tr><td><b>噪声过程</b></td><td>线性插值 <code>(1-t)·noise + t·action</code></td><td>高斯马尔可夫链 <code>√ᾱ·x₀ + √(1-ᾱ)·ε</code></td></tr>
+        <tr><td><b>预测目标</b></td><td>速度场 <code>v = action - noise</code></td><td>噪声 <code>ε</code></td></tr>
+        <tr><td><b>推理采样</b></td><td>Euler ODE (4-10步)</td><td>DDPM/DDIM 反向 (10-100步)</td></tr>
+        <tr><td><b>步数效率</b></td><td class="highlight">更少步数即可</td><td>需要更多步</td></tr>
+        <tr><td><b>代码</b></td><td><code>GR00T_ActionHeader.py</code></td><td><code>DiTActionHeader.py</code></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Panel: DataFlow -->
+<div class="panel" id="panel-dataflow">
+  <h2 style="margin-bottom:16px">训练数据流</h2>
+
+  <div class="flow-step">
+    <div class="num">1</div>
+    <div class="content">
+      <h4>数据源：LeRobot 格式</h4>
+      <p>统一的 HDF5/Parquet 格式存储机器人演示数据。每条样本包含：多视角图像序列、语言指令、动作 chunk、本体感觉状态。通过 YAML 声明式配置混合多个数据集。</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">2</div>
+    <div class="content">
+      <h4>DataLoader：双路分发</h4>
+      <p><code>build_dataloader(cfg)</code> 构建两路数据：VLA DataLoader（机器人动作数据）和 VLM DataLoader（图文问答数据）。交替喂入模型实现协同训练。</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">3</div>
+    <div class="content">
+      <h4>模型前向：统一 compute_loss 接口</h4>
+      <p><code>model.compute_loss(tag="vla", batch)</code> → forward() → action_loss<br>
+         <code>model.compute_loss(tag="vlm", batch)</code> → forward_vlm() → vlm_loss<br>
+         通过 loss_scale 配置权重（如 vla:1.0, vlm:0.1）防止 VLM 能力遗忘。</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">4</div>
+    <div class="content">
+      <h4>优化：Accelerate + DeepSpeed ZeRO-2</h4>
+      <p>AdamW 优化器，支持分组学习率（backbone 低 LR，action head 高 LR）。DeepSpeed ZeRO-2 分片优化器状态和梯度，8×A100 可达 80 samples/s。</p>
+    </div>
+  </div>
+
+  <div class="flow-step">
+    <div class="num">5</div>
+    <div class="content">
+      <h4>推理部署：Server-Client 解耦</h4>
+      <p>模型作为 WebSocket Policy Server 运行，评测/真机通过轻量 Client 交互。<code>predict_action(examples)</code> → unnormalize → 执行。</p>
+    </div>
+  </div>
+
+  <div style="margin-top:30px;padding:20px;background:var(--surface);border-radius:12px;border:1px solid var(--border)">
+    <h4>数据样本结构 (forward 输入)</h4>
+    <pre><code>example = {
+    "image": [PIL.Image, PIL.Image],  # 多视角图像列表
+    "lang":  "pick up the red cup",   # 自然语言指令
+    "action": np.ndarray([T, 7]),     # 动作 chunk [时间步, 动作维度]
+    "state":  np.ndarray([1, 7]),     # 当前本体感觉（可选）
+}
+batch = [example_1, example_2, ...]   # 批次 = List[dict]</code></pre>
+  </div>
+</div>
+
+<!-- Panel: OpenPI Comparison -->
+<div class="panel" id="panel-openpi">
+  <h2 style="margin-bottom:16px">OpenPI 仓库分析 & 与 StarVLA 对比</h2>
+  <p style="color:var(--text-dim);margin-bottom:20px">OpenPI 是 Physical Intelligence 官方开源的 π₀/π₀.₅/π₀-FAST 统一仓库。</p>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent);margin-bottom:16px">OpenPI 架构总览</h3>
+    <pre style="font-size:0.82em;line-height:1.5"><code>┌─────────────────────────────────────────────────────────────────┐
+│                    OpenPI 模型架构                                │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │         PaliGemma (VLM backbone, 共享)                    │   │
+│  │  ┌─────────────┐    ┌─────────────────────────────────┐  │   │
+│  │  │ SigLIP ViT  │    │ Gemma-2B LLM (prefix encoder)   │  │   │
+│  │  │ So400m/14   │    │ 因果注意力, 处理 image+text      │  │   │
+│  │  │ 224×224→token│    │ tokens                          │  │   │
+│  │  └──────┬──────┘    └────────────────┬────────────────┘  │   │
+│  │         └────────────┬───────────────┘                    │   │
+│  │                      ▼                                    │   │
+│  │          prefix_tokens [B, S, 2048]                       │   │
+│  └──────────────────────┬───────────────────────────────────┘   │
+│                         │                                       │
+│         ┌───────────────┼───────────────┐                       │
+│         ▼               ▼               ▼                       │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
+│  │   π₀        │  │   π₀.₅       │  │   π₀-FAST            │   │
+│  │ Gemma-300M  │  │ Gemma-300M   │  │ Gemma-2B (自回归)     │   │
+│  │ action expert│  │ + adaRMSNorm │  │ FAST token decode    │   │
+│  │ Flow Match  │  │ Flow Match   │  │ Next-token predict   │   │
+│  └─────────────┘  └──────────────┘  └──────────────────────┘   │
+│                                                                 │
+│  三者共享: VLM backbone (PaliGemma = SigLIP + Gemma-2B)         │
+│  区别:    Action expert 的结构和训练方式                          │
+└─────────────────────────────────────────────────────────────────┘</code></pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--accent2);margin-bottom:16px">OpenPI 三个模型的关系</h3>
+    <table>
+      <tr><th>模型</th><th>代码入口</th><th>VLM Backbone</th><th>Action Head</th><th>与 π₀ 的区别</th></tr>
+      <tr>
+        <td><b>π₀</b></td>
+        <td><code>pi0.py</code><br>Pi0Config(pi05=False)</td>
+        <td>PaliGemma<br>(SigLIP + Gemma-2B)</td>
+        <td>Gemma-300M action expert<br>+ Flow Matching</td>
+        <td>基准模型</td>
+      </tr>
+      <tr>
+        <td><b>π₀.₅</b></td>
+        <td><code>pi0.py</code><br>Pi0Config(pi05=True)</td>
+        <td>同上</td>
+        <td>Gemma-300M + <b>adaRMSNorm</b><br>+ Flow Matching</td>
+        <td>① state 作为离散语言 token<br>② adaRMSNorm 注入 timestep<br>③ knowledge insulation 训练</td>
+      </tr>
+      <tr>
+        <td><b>π₀-FAST</b></td>
+        <td><code>pi0_fast.py</code></td>
+        <td>同上</td>
+        <td>Gemma-2B 自回归<br>FAST tokenizer</td>
+        <td>无 flow matching<br>动作作为 token 自回归生成</td>
+      </tr>
+    </table>
+    <p style="margin-top:12px;font-size:0.9em;color:var(--text-dim)"><b>关键洞察</b>：π₀ 和 π₀.₅ 共享同一个 <code>Pi0</code> 类，仅通过 <code>pi05=True/False</code> 开关区分。三者都共享 PaliGemma VLM backbone。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--pink);margin-bottom:16px">π₀ / π₀.₅ 评测结果地图：原始论文、后续仿真、后续真机</h3>
+    <p style="color:var(--text-dim);margin-bottom:16px">
+      结论先行：原始 π₀ 和 π₀.₅ 论文本身都没有仿真实验，主要在真实机器人上验证。后续论文里，π₀ / π₀.₅ 在标准 LIBERO 类 benchmark 上很强；但换到 RoboCasa、RoboTwin、SimplerEnv-OOD、动态或接触丰富任务时，通常需要 world model、future prediction、guidance、tactile/force 或执行修正机制才能稳定超过它们。
+    </p>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-bottom:18px">
+      <div style="padding:14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
+        <h4 style="margin-bottom:6px">原始论文</h4>
+        <p style="font-size:0.86em;color:var(--text-dim)">π₀ / π₀.₅ 均为真机评测；没有 Isaac / MuJoCo / LIBERO 这类仿真主实验。</p>
+      </div>
+      <div style="padding:14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--green)">
+        <h4 style="margin-bottom:6px">标准仿真</h4>
+        <p style="font-size:0.86em;color:var(--text-dim)">LIBERO 上 π₀≈94.2%、π₀.₅≈96.8%，已经是很强的 baseline。</p>
+      </div>
+      <div style="padding:14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--orange)">
+        <h4 style="margin-bottom:6px">复杂 / OOD 仿真</h4>
+        <p style="font-size:0.86em;color:var(--text-dim)">RoboCasa、RoboTwin、SimplerEnv-OOD 中下降明显，是后续方法主要拉开差距的地方。</p>
+      </div>
+      <div style="padding:14px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--red)">
+        <h4 style="margin-bottom:6px">接触丰富真机</h4>
+        <p style="font-size:0.86em;color:var(--text-dim)">vision-only π₀/π₀.₅ 往往不足；触觉、力、future consequence guidance 能带来大幅提升。</p>
+      </div>
+    </div>
+
+    <h4 style="margin:18px 0 10px;color:var(--accent)">1) 原始 π₀ / π₀.₅ 论文：真机评测，没有仿真</h4>
+    <table>
+      <tr><th>论文 / 模型</th><th>评测类型</th><th>任务与平台</th><th>π₀ / π₀.₅ 结果</th><th>读数</th></tr>
+      <tr>
+        <td><b>π₀</b><br><span style="color:var(--text-dim)">A Vision-Language-Action Flow Model</span></td>
+        <td>真机；无仿真</td>
+        <td>7 种机器人配置，68 种任务；RGB + proprio + language，无触觉/力</td>
+        <td>在 5 项主要后训练任务上全面超越 OpenVLA、Octo、π₀-small；本地分析未提取统一平均 SR</td>
+        <td>奠定 VLM + flow matching action expert 的强 baseline；但不验证仿真泛化。</td>
+      </tr>
+      <tr>
+        <td><b>π₀.₅</b><br><span style="color:var(--text-dim)">Open-World Generalization</span></td>
+        <td>真机；无仿真</td>
+        <td>真实家庭 / mock rooms；移动双臂平台；4 路 RGB，无触觉/力</td>
+        <td>items in drawer ≈70%，dishes in sink ≈65%，laundry basket ≈55%，make bed ≈40%；整体显著优于 π₀ / π₀-FAST+Flow</td>
+        <td>主打开放世界长时程家务泛化；不是接触丰富精密操作或仿真 benchmark 论文。</td>
+      </tr>
+    </table>
+
+    <h4 style="margin:24px 0 10px;color:var(--green)">2) 后续论文中的仿真评测：π₀ / π₀.₅ 作为 baseline 或 backbone</h4>
+    <table>
+      <tr><th>后续论文</th><th>仿真环境</th><th>π₀ / π₀.₅ 数字</th><th>后续方法数字</th><th>结论</th></tr>
+      <tr>
+        <td><b>GR00T N1</b></td>
+        <td>RoboCasa 20 tasks</td>
+        <td>π₀：55.6%</td>
+        <td>GR00T N1：61.6%</td>
+        <td>π₀ 是强 baseline，但在 RoboCasa 上被双系统 DiT 基础模型小幅超过。</td>
+      </tr>
+      <tr>
+        <td><b>FutureVLA</b></td>
+        <td>SimplerEnv Google Robot</td>
+        <td>π₀：52.7%</td>
+        <td>FutureVLA-GT：80.1%</td>
+        <td>视觉未来预测对 SimplerEnv 有明显增益。</td>
+      </tr>
+      <tr>
+        <td><b>FutureVLA</b></td>
+        <td>SimplerEnv WidowX</td>
+        <td>π₀：20.9%</td>
+        <td>FutureVLA-GT：71.9%</td>
+        <td>跨具身 / 域迁移下，原始 π₀ 明显变弱。</td>
+      </tr>
+      <tr>
+        <td><b>FutureVLA</b></td>
+        <td>LIBERO</td>
+        <td>π₀：94.2%</td>
+        <td>FutureVLA-GT：98.3%</td>
+        <td>LIBERO 上 π₀ 已经很强，提升空间主要来自高分段微小增益。</td>
+      </tr>
+      <tr>
+        <td><b>ForeAct</b></td>
+        <td>LIBERO Spatial / Object / Goal / Long</td>
+        <td>π₀：94.2%；π₀.₅：96.8%</td>
+        <td>ForeAct w/ π₀.₅：97.5%</td>
+        <td>π₀.₅ 在标准 LIBERO 上非常强；视觉前瞻引导带来小幅 SOTA 提升。</td>
+      </tr>
+      <tr>
+        <td><b>DIAL</b></td>
+        <td>RoboCasa GR1 Tabletop 24 tasks</td>
+        <td>π₀：47.8%</td>
+        <td>DIAL：70.2%</td>
+        <td>人形 / RoboCasa 上，单纯 π₀ 表征传递不足；latent intent/world modeling 更有效。</td>
+      </tr>
+      <tr>
+        <td><b>GigaWorld-Policy</b></td>
+        <td>RoboTwin 2.0, 50 tasks</td>
+        <td>π₀.₅：0.44–0.48 SR</td>
+        <td>GigaWorld-Policy：0.86；Motus：0.88</td>
+        <td>RoboTwin 上 π₀.₅ 明显不是强仿真 baseline，world-model/video-policy 类方法优势大。</td>
+      </tr>
+      <tr>
+        <td><b>Qwen-VLA</b></td>
+        <td>SimplerEnv-OOD</td>
+        <td>π₀.₅：12.6%</td>
+        <td>Qwen-VLA：32.0%</td>
+        <td>OOD setting 下 π₀.₅ 成功率很低；大规模异构数据 + RL/SFT 有明显收益。</td>
+      </tr>
+      <tr>
+        <td><b>REMAC</b></td>
+        <td>Kinetix 12 dynamic tasks</td>
+        <td>基于 π₀ 的 naive async：d=0 为 0.828；d=4 为 0.451</td>
+        <td>REMAC：d=0 为 0.888；d=4 为 0.779</td>
+        <td>π₀ 类 action chunk 在异步 / 延迟执行下会退化；masked action chunking 修正有效。</td>
+      </tr>
+      <tr>
+        <td><b>KI-VLA</b></td>
+        <td>LIBERO-90 / DROID benchmark</td>
+        <td>π₀-FAST：0.73（LIBERO-90）</td>
+        <td>KI-VLA：0.815</td>
+        <td>不是 raw π₀/π₀.₅，但说明 π-family 训练中 knowledge insulation 能提升仿真性能和训练效率。</td>
+      </tr>
+    </table>
+
+    <h4 style="margin:24px 0 10px;color:var(--orange)">3) 后续论文中的真机评测：特别是接触丰富任务</h4>
+    <table>
+      <tr><th>后续论文</th><th>评测类型</th><th>π₀ / π₀.₅ 数字</th><th>增强方法数字</th><th>结论</th></tr>
+      <tr>
+        <td><b>ForeAct</b></td>
+        <td>真机 11 tasks，π₀ backbone</td>
+        <td>π₀：46.7%</td>
+        <td>ForeAct：87.4%</td>
+        <td>视觉前瞻 + action steering 对真实任务提升非常大。</td>
+      </tr>
+      <tr>
+        <td><b>ForeAct</b></td>
+        <td>真机，π₀.₅ backbone</td>
+        <td>π₀.₅：70.3%</td>
+        <td>ForeAct w/ π₀.₅：88.2%</td>
+        <td>π₀.₅ 本身更强，但 inference-time foresight guidance 仍有明显增益。</td>
+      </tr>
+      <tr>
+        <td><b>TouchGuide</b></td>
+        <td>真机接触丰富任务，DP / π₀.₅</td>
+        <td>π₀.₅ baseline：35.9%</td>
+        <td>TouchGuide + π₀.₅：58.0%</td>
+        <td>vision-only π₀.₅ 在接触任务不稳；触觉对比评分器做推理时 guidance 有效。</td>
+      </tr>
+      <tr>
+        <td><b>TaF-VLA</b></td>
+        <td>真机 8 个力敏感操作任务</td>
+        <td>π₀.₅ vision-only：37.1%</td>
+        <td>TaF-VLA：64.8%</td>
+        <td>触觉-力对齐 adapter 对 π₀.₅ 的接触任务增益很大。</td>
+      </tr>
+      <tr>
+        <td><b>GigaWorld-Policy</b></td>
+        <td>真机 PiPER 4 tasks</td>
+        <td>π₀.₅：0.69 SR</td>
+        <td>GigaWorld-Policy：0.83</td>
+        <td>world-model 预训练提升真机执行质量和数据效率。</td>
+      </tr>
+      <tr>
+        <td><b>Qwen-VLA</b></td>
+        <td>真机 ALOHA</td>
+        <td>π₀.₅：ID 71.6%；OOD 41.5%</td>
+        <td>Qwen-VLA：ID 83.6%；OOD 76.9%</td>
+        <td>π₀.₅ 的 OOD 真机泛化短板明显。</td>
+      </tr>
+      <tr>
+        <td><b>Xiaomi-Robotics-0</b></td>
+        <td>真机 Lego / Towel Folding</td>
+        <td>π₀.₅：Lego 97.0%；Towel 0.9 件/min</td>
+        <td>Xiaomi-Robotics-0：Lego 99.7%；Towel 1.2 件/min</td>
+        <td>π₀.₅ 在部分高数据/规整真机任务上已经很强；后续模型主要提升延迟和平滑执行。</td>
+      </tr>
+    </table>
+
+    <div style="margin-top:18px;padding:16px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--pink)">
+      <h4 style="margin-bottom:8px">对选择 baseline 的直接建议</h4>
+      <p style="font-size:0.9em;color:var(--text-dim)">
+        如果论文任务是普通 LIBERO-style tabletop imitation，π₀ / π₀.₅ 是高分强 baseline，单纯超过它们不容易。若任务是接触丰富、OOD、动态物体、跨具身或需要动作后果预测，π₀ / π₀.₅ 作为 vision-only VLA baseline 反而很有价值：已有后续论文显示它们在这些 setting 下会明显退化，而 foresight / world model / tactile-force guidance / execution correction 能系统性补上短板。
+      </p>
+      <p style="font-size:0.82em;color:var(--text-dim);margin-top:10px">
+        本节整理自本地 paper 库：<code>/home/chenzhiyuan/projects/paper/2024-pi0/</code>、<code>2025-pi0.5/</code>、<code>2025-GR00T-N1/</code>、<code>2026-FutureVLA/</code>、<code>2026-ForeAct/</code>、<code>2026-DIAL/</code>、<code>2026-GigaWorld-Policy/</code>、<code>2026-Qwen-VLA/</code>、<code>2026-REMAC/</code>、<code>2026-TouchGuide/</code>、<code>2026-TaF-VLA/</code>。
+      </p>
+    </div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--green);margin-bottom:16px">OpenPI 的独特设计：双 Gemma 架构</h3>
+    <p style="margin-bottom:12px">π₀ 的核心创新是用一个<b>独立的小 Gemma (300M)</b>作为 action expert，而非像 StarVLA-PI 那样用 DiT：</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="padding:16px;background:var(--surface2);border-radius:8px">
+        <h4 style="color:var(--accent2);margin-bottom:8px">π₀ Action Expert (Gemma-300M)</h4>
+        <pre style="font-size:0.8em"><code># 输入: prefix(VLM) + suffix(action+state)
+# 两个 Gemma 共享注意力:
+configs = [gemma_2b, gemma_300m]
+# Gemma-2B 处理 prefix (图像+语言)
+# Gemma-300M 处理 suffix (动作)
+# 两者通过 cross-attention 交互
+
+# Flow matching 部分:
+noisy_action = (1-t)·noise + t·action
+suffix = [state_embed, noisy_action_embed]
+velocity = model(prefix, suffix, t)
+loss = MSE(velocity, action - noise)</code></pre>
+      </div>
+      <div style="padding:16px;background:var(--surface2);border-radius:8px">
+        <h4 style="color:var(--accent);margin-bottom:8px">StarVLA-PI Action Expert (DiT)</h4>
+        <pre style="font-size:0.8em"><code># 输入: VLM hidden states + noisy action
+# DiT 独立架构:
+# 每层 DiT cross-attend 到 VLM 层
+
+# Flow matching 部分 (相同):
+noisy_action = (1-t)·noise + t·action
+action_tokens = ActionEncoder(noisy, t)
+velocity = DiT(action_tokens, VLM_states)
+loss = MSE(velocity, action - noise)</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
+    <h3 style="color:var(--orange);margin-bottom:16px">StarVLA vs OpenPI 全面对比</h3>
+    <table>
+      <tr><th>维度</th><th>StarVLA</th><th>OpenPI</th></tr>
+      <tr><td><b>框架语言</b></td><td>PyTorch (Accelerate + DeepSpeed)</td><td>JAX (Flax NNX) 为主 + PyTorch 推理</td></tr>
+      <tr><td><b>VLM Backbone</b></td><td>Qwen2.5-VL / Qwen3-VL / Gemma4 / MiniCPM 等<br>(可替换)</td><td>PaliGemma (SigLIP + Gemma-2B)<br>(固定)</td></tr>
+      <tr><td><b>Action Expert</b></td><td>独立的 DiT / MLP / FAST tokenizer<br>(cross-attention 连接)</td><td>小 Gemma-300M 与大 Gemma-2B<br>共享注意力 (prefix-suffix)</td></tr>
+      <tr><td><b>Flow Matching 实现</b></td><td>独立 DiT 网络做去噪</td><td>Action expert Gemma 做去噪<br>(LLM 即去噪器)</td></tr>
+      <tr><td><b>VLM→Action 连接</b></td><td>Cross-attention (KV来自VLM)</td><td>Prefix-suffix 注意力<br>(大小 Gemma 共享 KV space)</td></tr>
+      <tr><td><b>模块化程度</b></td><td class="highlight">高 — backbone/head 可独立替换</td><td>低 — 紧耦合 (PaliGemma 固定)</td></tr>
+      <tr><td><b>支持 Backbone 数</b></td><td class="highlight">7+ (Qwen/Gemma/MiniCPM/Florence/Cosmos/Wan)</td><td>1 (PaliGemma)</td></tr>
+      <tr><td><b>Action Head 种类</b></td><td class="highlight">4 (FAST/OFT/GR00T/PI)</td><td>2 (Flow Matching / FAST)</td></tr>
+      <tr><td><b>世界模型支持</b></td><td class="highlight">有 (Wan2.2, CosmoPredict2)</td><td>无</td></tr>
+      <tr><td><b>训练框架</b></td><td>Accelerate + DeepSpeed ZeRO-2/3</td><td>JAX FSDP (pjit)</td></tr>
+      <tr><td><b>多节点训练</b></td><td class="highlight">支持 (256 GPU 验证)</td><td>不支持 (README 明确说明)</td></tr>
+      <tr><td><b>Benchmark 集成</b></td><td class="highlight">7+ (LIBERO/SimplerEnv/RoboCasa...)</td><td>3 (ALOHA/DROID/LIBERO)</td></tr>
+      <tr><td><b>开源权重</b></td><td>有 (HuggingFace)</td><td>有 (base model + fine-tuned)</td></tr>
+      <tr><td><b>预训练数据</b></td><td>不含 (用户自备)</td><td>10K+小时机器人数据预训练</td></tr>
+      <tr><td><b>设计目标</b></td><td>研究平台 — 快速原型/对比实验</td><td>产品级 — 提供强 base model 供微调</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px">
+    <h3 style="margin-bottom:16px">核心架构差异总结</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="padding:16px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent2)">
+        <h4 style="margin-bottom:8px">OpenPI 的哲学：LLM 即一切</h4>
+        <p style="font-size:0.85em;color:var(--text-dim)">π₀ 把 action expert 也做成一个小 LLM (Gemma-300M)，与 VLM (Gemma-2B) 在同一注意力空间中交互。大小模型共享 token embedding，通过 prefix-suffix 注意力掩码区分角色。Flow matching 的去噪过程就是小 LLM 的前向传播。</p>
+        <p style="font-size:0.85em;color:var(--text-dim);margin-top:8px"><b>优势</b>：架构统一，可利用 LLM 的语言理解做动作推理<br><b>劣势</b>：紧耦合，换 backbone 困难</p>
+      </div>
+      <div style="padding:16px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--accent)">
+        <h4 style="margin-bottom:8px">StarVLA 的哲学：模块化组合</h4>
+        <p style="font-size:0.85em;color:var(--text-dim)">StarVLA 把 VLM 和 Action Head 完全解耦——VLM 输出 hidden states，Action Head (独立的 DiT/MLP/Tokenizer) 通过 cross-attention 消费这些特征。两者通过标准化的张量接口连接。</p>
+        <p style="font-size:0.85em;color:var(--text-dim);margin-top:8px"><b>优势</b>：灵活组合，快速实验不同配置<br><b>劣势</b>：cross-attention 是信息瓶颈，可能不如共享注意力紧密</p>
+      </div>
+    </div>
+    <p style="margin-top:16px;padding:12px;background:var(--surface2);border-radius:8px;font-size:0.9em"><b>一句话</b>：OpenPI 是"给你一个强 base model 来微调"，StarVLA 是"给你一套积木来搭建和对比不同 VLA"。两者定位互补。</p>
+  </div>
+</div>
+
+<!-- Panel: Compare -->
+<div class="panel" id="panel-compare">
+  <h2 style="margin-bottom:16px">方法对比</h2>
+
+  <h3 style="margin:20px 0 12px">四种 Action Head 全面对比</h3>
+  <table>
+    <tr>
+      <th>维度</th><th>FAST</th><th>OFT</th><th>GR00T</th><th>PI (π)</th>
+    </tr>
+    <tr><td><b>预测方式</b></td><td>自回归Token</td><td>并行回归</td><td>迭代去噪</td><td>迭代去噪</td></tr>
+    <tr><td><b>动作表示</b></td><td>离散Token</td><td>连续值</td><td>连续值</td><td>连续值</td></tr>
+    <tr><td><b>损失函数</b></td><td>Cross-Entropy</td><td>L1</td><td>MSE (velocity)</td><td>MSE (velocity)</td></tr>
+    <tr><td><b>VLM条件</b></td><td>内嵌在LLM生成中</td><td>最后层特定位置</td><td>最后层全序列（所有DiT层共享）</td><td>每层DiT对应不同VLM层（一一映射）</td></tr>
+    <tr><td><b>额外参数</b></td><td>0 (仅tokenizer)</td><td>~10M (MLP)</td><td>~100M (DiT-B)</td><td>~300M (N层DiT)</td></tr>
+    <tr><td><b>推理步数</b></td><td>O(T×tokens/step)</td><td><span class="highlight">1 步</span></td><td>4-10 步</td><td>4-10 步</td></tr>
+    <tr><td><b>多模态分布</b></td><td>有限</td><td>单峰</td><td class="highlight">支持</td><td class="highlight">支持</td></tr>
+    <tr><td><b>LIBERO Avg</b></td><td>95.4%</td><td class="highlight">96.6%</td><td>96.5%</td><td>95.7%</td></tr>
+    <tr><td><b>适用场景</b></td><td>语言-动作联合</td><td>低延迟/数据效率</td><td>通用</td><td>精确操作</td></tr>
+  </table>
+
+  <h3 style="margin:30px 0 12px">StarVLA vs 外部方法对应关系</h3>
+  <table>
+    <tr><th>外部方法</th><th>StarVLA 对应</th><th>核心替换</th><th>效果对比</th></tr>
+    <tr><td>OpenVLA-OFT</td><td>QwenOFT</td><td>Prismatic-7B → Qwen-VL-4B</td><td>96.6% vs 97.1% (但仅1/6步数)</td></tr>
+    <tr><td>π₀</td><td>QwenPI</td><td>PaliGemma → Qwen-VL</td><td>95.7% vs 85.5%</td></tr>
+    <tr><td>GR00T N1.5</td><td>QwenGR00T</td><td>Eagle-2 → Qwen-VL</td><td>96.5% vs 86.5%</td></tr>
+    <tr><td>π₀-FAST</td><td>QwenFast</td><td>PaliGemma → Qwen-VL</td><td>95.4% vs 85.5%</td></tr>
+    <tr><td>Cosmos Policy</td><td>WanPI / CosmoPredict2PI</td><td>世界模型做backbone</td><td>实验进行中</td></tr>
+  </table>
+
+  <h3 style="margin:30px 0 12px">跨 Benchmark 性能</h3>
+  <table>
+    <tr><th>方法</th><th>LIBERO Avg</th><th>SimplerEnv WidowX</th><th>RoboCasa-GR1</th><th>RoboTwin 2.0</th></tr>
+    <tr><td>StarVLA-OFT</td><td class="highlight">96.6%</td><td>64.6%</td><td class="highlight">48.8%</td><td>87.3%</td></tr>
+    <tr><td>StarVLA-GR00T</td><td>96.5%</td><td class="highlight">65.3%</td><td>47.8%</td><td>88.5%</td></tr>
+    <tr><td>StarVLA-π</td><td>95.7%</td><td>-</td><td>-</td><td class="highlight">88.8%</td></tr>
+    <tr><td>GR00T N1.5</td><td>86.5%</td><td>61.9%</td><td>47.6%</td><td>-</td></tr>
+    <tr><td>OpenVLA-OFT</td><td>97.1%</td><td>-</td><td>-</td><td>-</td></tr>
+  </table>
+</div>
+
+<!-- Panel: Quiz -->
+<div class="panel" id="panel-quiz">
+  <h2 style="margin-bottom:16px">自测：检验你的理解</h2>
+
+  <div class="quiz-section">
+    <div class="quiz-q" id="q1">
+      <h4>Q1：StarVLA 的核心设计哲学是什么？</h4>
+      <div class="quiz-option" onclick="checkAnswer(this,'q1',false)">A. 端到端训练不分模块</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q1',true)">B. Backbone-Action Head 分解，通过隐状态契约连接</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q1',false)">C. 强化学习 + 模仿学习混合训练</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q1',false)">D. 用单一架构处理所有任务</div>
+      <div class="quiz-feedback" id="fb-q1">Backbone 输出标准化的 hidden_states [B, L, H]，Action Head 消费这些隐状态生成动作。两者通过这个"契约"解耦，可以独立替换。</div>
+    </div>
+
+    <div class="quiz-q" id="q2">
+      <h4>Q2：GR00T 和 PI (π) 的关键区别是？</h4>
+      <div class="quiz-option" onclick="checkAnswer(this,'q2',false)">A. GR00T 用 Diffusion，PI 用 Flow-Matching</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q2',false)">B. GR00T 预测离散动作，PI 预测连续动作</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q2',true)">C. GR00T 只用最后一层 hidden state，PI 用所有层</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q2',false)">D. GR00T 不需要 backbone，PI 需要</div>
+      <div class="quiz-feedback" id="fb-q2">两者都用 Flow-Matching，但 PI 的 DiT 每一层对应 VLM 的每一层做 cross-attention，实现多尺度特征融合。GR00T 仅以最后一层为条件。</div>
+    </div>
+
+    <div class="quiz-q" id="q3">
+      <h4>Q3：为什么 StarVLA 要支持 VLM 协同训练 (forward_vlm)？</h4>
+      <div class="quiz-option" onclick="checkAnswer(this,'q3',false)">A. 提升训练速度</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q3',false)">B. 减少显存占用</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q3',true)">C. 防止 VLM 多模态能力在 action-only 微调中遗忘</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q3',false)">D. 生成更好的训练数据</div>
+      <div class="quiz-feedback" id="fb-q3">论文实验表明：纯动作微调 20K 步后，VLM 的空间理解能力（如 RefCOCO-g）快速退化至随机水平。交替进行 VLM 前向（保持语言/视觉理解）和 VLA 前向（学习动作）可有效缓解。</div>
+    </div>
+
+    <div class="quiz-q" id="q4">
+      <h4>Q4：FAST action head 的本质是什么？</h4>
+      <div class="quiz-option" onclick="checkAnswer(this,'q4',false)">A. 用 MLP 回归动作值</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q4',true)">B. 将连续动作 BPE 编码为离散 token，复用 LLM 的 next-token 预测</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q4',false)">C. 用 VAE 编码动作序列</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q4',false)">D. 用扩散模型生成动作</div>
+      <div class="quiz-feedback" id="fb-q4">FAST 使用 Physical Intelligence 提出的 BPE tokenizer 将连续动作编码为类似语言的 token 序列（如 &lt;robot_action_12&gt;），然后直接用 LLM 的自回归生成预测下一个 token。解码后恢复连续动作。</div>
+    </div>
+
+    <div class="quiz-q" id="q5">
+      <h4>Q5：World Model Backbone 相比 VLM Backbone 的优势在哪？</h4>
+      <div class="quiz-option" onclick="checkAnswer(this,'q5',false)">A. 参数量更小</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q5',false)">B. 推理速度更快</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q5',true)">C. 隐状态编码了时空动态和物理先验</div>
+      <div class="quiz-option" onclick="checkAnswer(this,'q5',false)">D. 不需要语言输入</div>
+      <div class="quiz-feedback" id="fb-q5">世界模型（如 Wan2.2）预训练目标是预测未来视频帧，因此其隐状态天然编码了运动、接触、变形等物理动态，对需要物理预测的操作任务（如接触丰富操作）有天然优势。</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- container -->
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+// Detail data
+const details = {
+  input: {
+    title: '输入层',
+    html: `<p>VLA 模型的统一输入接口分为两类：</p>
+    <h4 style="margin:12px 0 8px;color:var(--green)">观测输入（训练 + 推理共用）</h4>
+    <div class="meta">
+      <div class="meta-item"><label>图像</label><span>List[PIL.Image] — 多视角 RGB</span></div>
+      <div class="meta-item"><label>语言</label><span>str — 自然语言任务指令</span></div>
+      <div class="meta-item"><label>状态(可选)</label><span>np.ndarray [1, state_dim] — 本体感觉</span></div>
+    </div>
+    <h4 style="margin:12px 0 8px;color:var(--orange)">监督信号（仅训练时传入）</h4>
+    <div class="meta">
+      <div class="meta-item"><label>动作 (ground-truth)</label><span>np.ndarray [T, action_dim] — 用于计算 loss，推理时不需要</span></div>
+    </div>
+    <p style="margin-top:12px">所有 Framework 的 <code>forward()</code> 和 <code>predict_action()</code> 都接受 <code>List[dict]</code> 格式的 batch。设计原则：观测输入直接镜像真实部署所见，最小化训练/测试分布偏移。</p>`
+  },
+  vlm: {
+    title: 'VLM Backbone',
+    html: `<p>基于预训练视觉-语言模型，利用其强大的多模态理解能力。</p>
+    <div class="meta">
+      <div class="meta-item"><label>输入</label><span>images + text → tokenize + vision encode</span></div>
+      <div class="meta-item"><label>输出</label><span>hidden_states [B, L, H] (+ 所有层)</span></div>
+      <div class="meta-item"><label>核心接口</label><span>get_vlm_model(config) → nn.Module</span></div>
+      <div class="meta-item"><label>代码</label><span>starVLA/model/modules/vlm/</span></div>
+    </div>
+    <pre><code># 统一接口
+vlm = get_vlm_model(config)
+inputs = vlm.build_qwenvl_inputs(images, instructions)
+outputs = vlm(**inputs, output_hidden_states=True)
+last_hidden = outputs.hidden_states[-1]  # [B, L, H]</code></pre>`
+  },
+  wm: {
+    title: 'World Model Backbone',
+    html: `<p>基于视频生成模型（Text+Image→Video DiT），利用其时空预测能力。</p>
+    <div class="meta">
+      <div class="meta-item"><label>输入</label><span>image → VAE latent, text → UMT5</span></div>
+      <div class="meta-item"><label>输出</label><span>multi-layer hidden_states [N × (B, S, H)]</span></div>
+      <div class="meta-item"><label>核心接口</label><span>get_world_model(config) → nn.Module</span></div>
+      <div class="meta-item"><label>代码</label><span>starVLA/model/modules/world_model/</span></div>
+    </div>
+    <p>与 VLM 的关键区别：预训练目标是预测未来帧，隐状态天然编码物理动态。</p>`
+  },
+  fast: {
+    title: 'FAST Action Head — 自回归离散 Token',
+    html: `<p><b>核心思想</b>：将连续动作 BPE 编码为语言 token，复用 LLM 的生成能力。</p>
+    <pre><code>连续动作 [T, 7]
+    ↓ FAST BPE Tokenizer (vocab=2048)
+离散 token 序列: "&lt;robot_action_12&gt;&lt;robot_action_3&gt;..."
+    ↓ LLM Autoregressive Generation
+预测 token → decode → 连续动作 [T, 7]</code></pre>
+    <div class="meta">
+      <div class="meta-item"><label>额外参数</label><span>0（仅 tokenizer，无可训练参数）</span></div>
+      <div class="meta-item"><label>损失函数</label><span>Cross-Entropy (next-token)</span></div>
+      <div class="meta-item"><label>推理方式</label><span>自回归逐 token 生成</span></div>
+      <div class="meta-item"><label>代码</label><span>modules/action_model/fast_ActionHeader.py</span></div>
+    </div>`
+  },
+  oft: {
+    title: 'OFT Action Head — MLP 并行回归',
+    html: `<p><b>核心思想</b>：从 VLM 预定义 action token 位置提取特征，MLP 直接回归动作值。</p>
+    <pre><code>VLM hidden_states [B, L, H]
+    ↓ 提取 action token 对应位置的特征
+features [B, T, H]
+    ↓ MLP (Linear → ReLU → Linear)
+actions [B, T, action_dim]
+    ↓ L1 Loss vs ground truth</code></pre>
+    <div class="meta">
+      <div class="meta-item"><label>额外参数</label><span>~10M (轻量 MLP)</span></div>
+      <div class="meta-item"><label>损失函数</label><span>L1 Loss</span></div>
+      <div class="meta-item"><label>推理方式</label><span>单步前向（最快）</span></div>
+      <div class="meta-item"><label>代码</label><span>modules/action_model/MLP_ActionHeader.py</span></div>
+    </div>`
+  },
+  groot: {
+    title: 'GR00T Action Head — 单源 Cross-DiT Flow-Matching',
+    html: `<p><b>核心思想</b>：Cross-DiT 做流匹配，所有 DiT 层共享 VLM <b>最后一层</b> hidden_state 作为 KV 条件，从噪声迭代去噪生成动作。</p>
+    <pre><code># 训练
+noise ~ N(0,1), t ~ Beta(1.5, 1.0)
+noisy_action = (1-t)*noise + t*action   # 插值
+velocity_true = action - noise
+velocity_pred = DiT(noisy_action, t, cross_attn_kv=VLM_last_layer)
+loss = MSE(velocity_pred, velocity_true)
+
+# 推理 (Euler ODE, 4步)
+action = randn(B, T, dim)
+for step in [0, 1/4, 2/4, 3/4]:
+    velocity = DiT(action, step, cross_attn_kv=VLM_last_layer)
+    action = action + 0.25 * velocity</code></pre>
+    <div class="meta">
+      <div class="meta-item"><label>额外参数</label><span>~100M (DiT-B: 12 heads, 768 dim)</span></div>
+      <div class="meta-item"><label>Cross-attn KV 来源</label><span>仅 VLM 最后一层（所有 DiT 层共享同一 KV）</span></div>
+      <div class="meta-item"><label>推理步数</label><span>4步 Euler（可调）</span></div>
+      <div class="meta-item"><label>代码</label><span>modules/action_model/GR00T_ActionHeader.py</span></div>
+    </div>
+    <p style="margin-top:12px"><b>与 PI 的关键区别</b>：GR00T 所有 DiT 层看到的 VLM 特征相同（最终语义），而 PI 每层看不同深度的 VLM 特征（多尺度）。GR00T DiT 深度可以任意设（如 16 层），不需要与 VLM 对齐。</p>`
+  },
+  pi: {
+    title: 'PI (π₀) Action Head — 层级对齐 Cross-DiT Flow-Matching',
+    html: `<p><b>核心思想</b>：DiT 的第 i 层 cross-attend 到 VLM 第 i 层的 hidden_state，实现多尺度特征融合。DiT 层数与 VLM 层数严格对齐。</p>
+    <pre><code># VLM 有 36 层 → DiT 也必须有 36 层（层级对齐）
+# 关键代码 (QwenPI.py):
+expected_layers = len(self.action_model.model.transformer_blocks)
+vl_embs_list = list(qwenvl_outputs.hidden_states[-expected_layers:])
+
+# DiT 第 i 层：
+#   self_attention(action_tokens)
+#   cross_attention(query=action, key/value=VLM_layer_i)  ← 每层不同!
+#   feed_forward → action_tokens
+
+# 多尺度直觉:
+VLM 浅层 → 低级空间/纹理特征（物体边缘、位置）→ DiT 浅层
+VLM 中层 → 中级组合特征（物体关系、场景布局）→ DiT 中层  
+VLM 深层 → 高级语义/意图（"pick up"的含义）→ DiT 深层</code></pre>
+    <div class="meta">
+      <div class="meta-item"><label>额外参数</label><span>~300M (与 VLM 层数对齐，如 36 层)</span></div>
+      <div class="meta-item"><label>Cross-attn KV 来源</label><span>每层 DiT 用对应 VLM 层的 hidden_state（一一映射）</span></div>
+      <div class="meta-item"><label>关键约束</label><span>DiT 层数 = VLM 层数（自动从 VLM config 读取）</span></div>
+      <div class="meta-item"><label>代码</label><span>modules/action_model/LayerwiseFM_ActionHeader.py</span></div>
+    </div>
+    <p style="margin-top:12px"><b>为什么层级对齐有效？</b> VLM 不同层编码不同抽象层级的信息。单取最后一层（GR00T做法）会丢失低级空间精度。π₀ 的层级对齐让 action head 同时获得"在哪"（浅层）和"做什么"（深层）的信息，对精确操作尤其重要。</p>`
+  },
+  qwen: {
+    title: 'Qwen2.5-VL / Qwen3-VL',
+    html: `<p>StarVLA 的主力 VLM backbone。阿里通义千问视觉-语言模型。</p>
+    <div class="meta">
+      <div class="meta-item"><label>参数量</label><span>3B / 4B</span></div>
+      <div class="meta-item"><label>Hidden Dim</label><span>2048</span></div>
+      <div class="meta-item"><label>Layers</label><span>36</span></div>
+      <div class="meta-item"><label>特点</label><span>动态分辨率、原生多图、M-RoPE位置编码</span></div>
+    </div>
+    <pre><code># starVLA/model/modules/vlm/QWen2_5.py
+class _QWen_VL_Interface(nn.Module):
+    def __init__(self, config):
+        self.model = Qwen2_5_VLForConditionalGeneration.from_pretrained(...)
+        self.processor = AutoProcessor.from_pretrained(...)
+
+    def build_qwenvl_inputs(self, images, instructions):
+        # 构建 Qwen-VL 格式的多模态输入
+        ...
+
+    def forward(self, **inputs):
+        return self.model(**inputs)</code></pre>`
+  }
+};
+
+function showDetail(key) {
+  const d = details[key];
+  if (!d) return;
+  const panel = document.getElementById('detail-panel');
+  document.getElementById('detail-content').innerHTML = `<h2>${d.title}</h2>${d.html}`;
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideDetail() {
+  document.getElementById('detail-panel').classList.remove('show');
+}
+
+function showActionHead(key) {
+  const d = details[key];
+  if (!d) return;
+  const panel = document.getElementById('action-head-detail');
+  panel.innerHTML = `<button class="close-btn" onclick="this.parentElement.classList.remove('show')">&times;</button><h2>${d.title}</h2>${d.html}`;
+  panel.classList.add('show');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Quiz
+function checkAnswer(el, qId, correct) {
+  const q = document.getElementById(qId);
+  if (q.dataset.answered) return;
+  q.dataset.answered = 'true';
+  el.classList.add(correct ? 'correct' : 'wrong');
+  if (!correct) {
+    q.querySelectorAll('.quiz-option').forEach(opt => {
+      if (opt !== el) opt.style.pointerEvents = 'none';
+    });
+  }
+  const fb = document.getElementById('fb-' + qId);
+  fb.style.display = 'block';
+  fb.style.background = correct ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)';
+  fb.style.border = `1px solid ${correct ? 'var(--green)' : 'var(--red)'}`;
+}
+</script>
+</body>
+</html>
