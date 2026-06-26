@@ -3,348 +3,218 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>推理时引导 VLA 方法对比 · VLMGuide 方案</title>
+<title>VLA 推理时引导 · OOD 问题全景 · VLMGuide 课题规划</title>
 <style>
-  :root{
-    --bg:#0f1117; --card:#1a1d27; --card2:#222632; --line:#2e3342;
-    --txt:#e6e8ee; --dim:#9aa0ac; --accent:#5b9dff; --accent2:#ffb454;
-    --green:#4ec9a8; --red:#ff6b6b; --purple:#b48ead; --yellow:#e5c07b;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--txt);font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;line-height:1.6;padding:0 0 80px}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
-  header{padding:46px 0 30px;border-bottom:1px solid var(--line);margin-bottom:32px}
-  h1{font-size:30px;font-weight:800;letter-spacing:.5px}
-  h1 .g{background:linear-gradient(90deg,#5b9dff,#b48ead);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{color:var(--dim);margin-top:10px;font-size:15px}
-  h2{font-size:22px;margin:46px 0 16px;padding-left:12px;border-left:4px solid var(--accent)}
-  h3{font-size:17px;margin:24px 0 10px;color:var(--accent2)}
-  p{color:#cfd3dd;margin:10px 0}
-  .lead{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0}
-  .lead b{color:var(--green)}
-  /* table */
-  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:18px 0}
-  table{border-collapse:collapse;width:100%;min-width:920px;font-size:13.5px}
-  th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
-  th{background:var(--card2);color:#fff;font-weight:700;position:sticky;top:0;white-space:nowrap}
-  tr:nth-child(even) td{background:rgba(255,255,255,.018)}
-  td.name{font-weight:700;color:var(--accent);white-space:nowrap}
-  .yr{color:var(--dim);font-weight:400;font-size:12px}
-  .tag{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;font-weight:600;white-space:nowrap}
-  .t-grad{background:rgba(91,157,255,.16);color:#8fbaff}
-  .t-proj{background:rgba(180,142,173,.18);color:#d4a9cf}
-  .t-exec{background:rgba(78,201,168,.16);color:#74dcc0}
-  .t-retrain{background:rgba(255,107,107,.16);color:#ff9a9a}
-  .yes{color:var(--green);font-weight:700}
-  .no{color:var(--red);font-weight:700}
-  .mid{color:var(--yellow);font-weight:700}
-  /* cards */
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;margin:18px 0}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-  .card h4{font-size:15.5px;color:#fff;margin-bottom:4px}
-  .card .meta{font-size:12px;color:var(--dim);margin-bottom:10px}
-  .flow{font-family:"SF Mono",Consolas,monospace;font-size:12px;color:#bfe3ff;background:#10141d;border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre-wrap;line-height:1.7;margin:8px 0}
-  .gd{color:#cfd3dd;font-size:13px;margin-top:8px}
-  .gd b{color:var(--accent2)}
-  /* ours */
-  .ours{background:linear-gradient(180deg,rgba(91,157,255,.10),rgba(180,142,173,.06));border:1px solid #3a4566}
-  .pipe{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:14px 0;font-size:13px}
-  .pill{background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
-  .pill b{color:var(--accent)}
-  .arrow{color:var(--dim);font-weight:700}
-  .stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:14px 0}
-  .stage{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12.5px}
-  .stage .s{color:var(--accent2);font-weight:700}
-  .moat{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
-  .moat .m{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--green);border-radius:8px;padding:12px 14px;font-size:13px}
-  .moat .m b{color:var(--green)}
-  .note{font-size:12.5px;color:var(--dim);margin-top:6px}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--dim);margin:8px 0 4px}
-  footer{margin-top:50px;padding-top:20px;border-top:1px solid var(--line);color:var(--dim);font-size:12.5px}
-  @media(max-width:680px){.moat{grid-template-columns:1fr}}
+:root{--bg:#0f1117;--card:#1a1d27;--card2:#222632;--line:#2e3342;--txt:#e6e8ee;--dim:#9aa0ac;--accent:#5b9dff;--accent2:#ffb454;--green:#4ec9a8;--red:#ff6b6b;--purple:#b48ead;--yellow:#e5c07b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;line-height:1.7;padding:0 0 80px}
+.wrap{max-width:1200px;margin:0 auto;padding:0 22px}
+header{padding:46px 0 30px;border-bottom:1px solid var(--line);margin-bottom:32px}
+h1{font-size:28px;font-weight:800}.g{background:linear-gradient(90deg,#5b9dff,#b48ead);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--dim);margin-top:10px;font-size:14px}
+h2{font-size:21px;margin:44px 0 14px;padding-left:12px;border-left:4px solid var(--accent)}
+h3{font-size:16px;margin:22px 0 8px;color:var(--accent2)}
+p,.desc{color:#cfd3dd;margin:8px 0;font-size:14px}
+.lead{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:16px 0;font-size:14px}
+.lead b{color:var(--green)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:16px 0}
+table{border-collapse:collapse;width:100%;min-width:700px;font-size:13px}
+th,td{padding:10px 11px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--card2);color:#fff;font-weight:700;position:sticky;top:0;white-space:nowrap}
+tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+td.name{font-weight:700;color:var(--accent);white-space:nowrap}
+.yr{color:var(--dim);font-weight:400;font-size:11px}
+.tag{display:inline-block;padding:1px 7px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.t1{background:rgba(255,107,107,.15);color:#ff9a9a}.t2{background:rgba(229,192,123,.15);color:#e5c07b}.t3{background:rgba(91,157,255,.15);color:#8fbaff}.t4{background:rgba(78,201,168,.15);color:#74dcc0}
+.yes{color:var(--green);font-weight:700}.no{color:var(--red);font-weight:700}.mid{color:var(--yellow);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;margin:16px 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+.card h4{font-size:15px;color:#fff;margin-bottom:4px}.card .meta{font-size:11px;color:var(--dim);margin-bottom:8px}
+.flow{font-family:"SF Mono",Consolas,monospace;font-size:11.5px;color:#bfe3ff;background:#10141d;border:1px solid var(--line);border-radius:8px;padding:10px 12px;white-space:pre-wrap;line-height:1.65;margin:6px 0}
+.ours{background:linear-gradient(180deg,rgba(91,157,255,.08),rgba(180,142,173,.04));border:1px solid #3a4566}
+.pill{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin:3px;font-size:12px}
+.pill b{color:var(--accent)}
+.moat{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0}
+.moat .m{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--green);border-radius:8px;padding:10px 12px;font-size:12.5px}
+.moat .m b{color:var(--green)}
+.note{font-size:12px;color:var(--dim);margin-top:5px}
+.stages{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:12px 0}
+.stage{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12px}
+.stage .s{color:var(--accent2);font-weight:700}
+.rec{background:linear-gradient(135deg,rgba(78,201,168,.12),rgba(91,157,255,.08));border:2px solid rgba(78,201,168,.4);border-radius:14px;padding:20px 22px;margin:20px 0}
+.rec h3{color:var(--green);margin-top:0}
+footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--dim);font-size:12px}
+@media(max-width:680px){.moat,.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>推理时引导 VLA 方法对比 · <span class="g">VLMGuide 方案规划</span></h1>
-  <div class="sub">聚焦"不重训策略、在推理时引导冻结 VLA 解决 OOD"这条研究线 —— 它们的数据流、引导机制，以及我们的差异化定位 · 2026-06</div>
+<h1>VLA 推理时引导 · OOD 问题全景 · <span class="g">VLMGuide 课题规划</span></h1>
+<div class="sub">聚焦"已部署 VLA（π0.5）在真实场景的 OOD 失败"——分类、已有解法、以及我们的独特方向 · 2026-06-26</div>
 </header>
 
-<div class="lead">
-<b>一句话主线：</b>当部署的 VLA（如 π0.5）遇到训练分布外的新物体时会失败。重训成本高，于是一批工作转向<b>推理时引导</b>——不改策略参数，在动作生成过程注入引导信号纠偏。本页对比它们「怎么生成引导信号」「怎么注入策略」，并指出它们的共同盲区与我们的切入点。
-</div>
+<!-- ===================== PART 1: OOD 类型 ===================== -->
+<h2>一、VLA 在部署中遇到的 OOD 类型</h2>
 
-<h2>一、总览对比表</h2>
-<div class="legend">
-  <span><span class="tag t-grad">梯度引导</span> 在采样过程加梯度</span>
-  <span><span class="tag t-proj">投影/约束</span> 似然约束投影</span>
-  <span><span class="tag t-exec">条件执行</span> 目标喂 policy 执行</span>
-  <span><span class="tag t-retrain">重训</span> 改模型参数</span>
-</div>
+<h3>1.1 真机实际观察（松灵双臂 π0.5，一手数据）</h3>
 <div class="tablewrap">
 <table>
-<thead><tr>
-  <th>方法</th><th>引导信号来源</th><th>注入机制</th><th>引导空间</th>
-  <th>独立模型</th><th>检验目标可信度</th><th>闭环</th><th>OOD 类型</th>
-</tr></thead>
+<thead><tr><th>#</th><th>失败现象</th><th>失败本质</th><th>所在层</th><th>能否推理时引导治</th></tr></thead>
 <tbody>
-<tr>
-  <td class="name">DISCO<div class="yr">2024 · NUS</div></td>
-  <td>VLM(GPT-4V) 出 3D keyframe</td>
-  <td><span class="tag t-proj">投影/约束</span> 似然约束 inpainting</td>
-  <td>3D 位置 / 动作分布</td>
-  <td class="no">否</td>
-  <td class="mid">固定阈值 γ（隐式）</td>
-  <td class="no">否</td>
-  <td>几何 / 分布支撑</td>
-</tr>
-<tr>
-  <td class="name">SuSIE<div class="yr">2023 · Berkeley</div></td>
-  <td>图像编辑生成 subgoal 图</td>
-  <td><span class="tag t-exec">条件执行</span> goal-conditioned policy</td>
-  <td>未来观测图像</td>
-  <td class="no">否（专训低层）</td>
-  <td class="no">否（生成即信）</td>
-  <td class="no">否</td>
-  <td>语义+低层精度</td>
-</tr>
-<tr>
-  <td class="name">GHIL-Glue<div class="yr">2024 · TRI/Berkeley</div></td>
-  <td>图像编辑生成 subgoal 图</td>
-  <td><span class="tag t-exec">条件执行</span> + 分类器过滤</td>
-  <td>未来观测图像</td>
-  <td class="mid">分类器</td>
-  <td class="mid">任务进展分类（二元过滤）</td>
-  <td class="no">否</td>
-  <td>有害伪影 / 跑偏</td>
-</tr>
-<tr>
-  <td class="name">DynaGuide<div class="yr">2025 · Stanford</div></td>
-  <td>人工给定 g+/g- 图像</td>
-  <td><span class="tag t-grad">梯度引导</span> classifier guidance</td>
-  <td>DINOv2 视觉 latent</td>
-  <td class="yes">动态模型</td>
-  <td class="no">否（假设可信）</td>
-  <td class="no">否（开环）</td>
-  <td>分布内行为选择</td>
-</tr>
-<tr>
-  <td class="name">VLS<div class="yr">2026 · UW/Oxford</div></td>
-  <td>VLM 写可微 reward 代码</td>
-  <td><span class="tag t-grad">梯度引导</span> + FK 重采样</td>
-  <td>3D keypoint 几何势场</td>
-  <td class="no">否（reward 直接打分）</td>
-  <td class="no">否（自适应λ非可信度）</td>
-  <td class="mid">粗（Schmitt）</td>
-  <td>几何 / 空间为主</td>
-</tr>
-<tr>
-  <td class="name">OmniGuide<div class="yr">2026 · UPenn</div></td>
-  <td>VLM 点 + 3D 模型 + 人姿</td>
-  <td><span class="tag t-grad">梯度引导</span> 能量场(运动学)</td>
-  <td>3D 笛卡尔吸引/排斥</td>
-  <td class="no">否（可微运动学）</td>
-  <td class="no">否（恒定强度）</td>
-  <td class="mid">轨迹对齐</td>
-  <td>几何 / 空间为主</td>
-</tr>
-<tr>
-  <td class="name">ForeAct<div class="yr">2026 · MIT</div></td>
-  <td>VLM + 前瞻图像</td>
-  <td><span class="tag t-grad">梯度引导</span> 冻结 π0/π0.5</td>
-  <td>视觉</td>
-  <td class="mid">前瞻生成器</td>
-  <td class="no">否（默认可信）</td>
-  <td class="no">否</td>
-  <td>语义</td>
-</tr>
-<tr>
-  <td class="name">ViTaL-Steering<div class="yr">2026 · CMU</div></td>
-  <td>视触觉世界模型</td>
-  <td><span class="tag t-grad">梯度引导</span> 双层优化</td>
-  <td>视觉+触觉 latent</td>
-  <td class="yes">世界模型</td>
-  <td class="no">否</td>
-  <td class="mid">latent</td>
-  <td>接触精细</td>
-</tr>
-<tr>
-  <td class="name">G0.5<div class="yr">2026 · Galaxea</div></td>
-  <td>统一自回归（prompt 原生）</td>
-  <td><span class="tag t-retrain">重训</span> VLM-as-actor</td>
-  <td>token 流</td>
-  <td class="no">—（一体）</td>
-  <td class="no">否</td>
-  <td class="no">否</td>
-  <td>prompt steering</td>
-</tr>
-<tr>
-  <td class="name">DIAL<div class="yr">2026 · HKU</div></td>
-  <td>结构性瓶颈</td>
-  <td><span class="tag t-retrain">重训</span> VLM 注入</td>
-  <td>—</td>
-  <td class="no">—</td>
-  <td class="no">否</td>
-  <td class="no">否</td>
-  <td>结构泛化</td>
-</tr>
-<tr class="ours" style="background:rgba(91,157,255,.10)">
-  <td class="name" style="color:#ffb454">▶ VLMGuide<div class="yr">本方案</div></td>
-  <td>图像编辑生成稠密 goal 图</td>
-  <td><span class="tag t-grad">梯度引导</span> 冻结 π0.5 flow matching</td>
-  <td>DINOv2 视觉 latent</td>
-  <td class="yes">视觉动力学</td>
-  <td class="yes">✓ 可达性检验（核心）</td>
-  <td class="yes">✓ 诊断+重编辑</td>
-  <td>语义-可供性</td>
-</tr>
+<tr><td class="name">1</td><td>新旧物体混合时，模型偏向抓<b>见过的</b>旧物体，忽略指令要的新物体</td><td><span class="tag t1">Familiarity Bias</span> 走捷径，旧物体特征激活强、抢占动作</td><td>感知→动作的<b>注意力/选择</b>层</td><td class="yes">✓ 有戏</td></tr>
+<tr><td class="name">2</td><td>训练没见过的行为（如开抽屉），测试做不出</td><td><span class="tag t2">行为先验缺失</span> 动作分布里根本没有该技能</td><td><b>动作先验</b>层（真盲区）</td><td class="no">✗ 治不了</td></tr>
+<tr><td class="name">3</td><td>方位指令（"放左边"）跟随不了</td><td><span class="tag t3">语言-空间 grounding 缺失</span> 训练没有方位映射</td><td>语言→空间 grounding</td><td class="mid">⚠ 部分可治</td></tr>
+<tr><td class="name">4</td><td>夹爪开合不匹配（小→大物体）</td><td>数据覆盖不足（二值化可绕过）</td><td>动作细节</td><td>—</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">注：「重训」类（G0.5/DIAL）与本方案路线不同，列入用于说明取舍——它们改模型、门槛高；推理时引导类不改模型、门槛低，是本方案所在赛道。</p>
 
-<h2>二、它们各自怎么做引导？（数据流 + 机制）</h2>
-<div class="grid">
-
-  <div class="card">
-    <h4>DISCO <span class="yr">2024</span></h4>
-    <div class="meta">VLM keyframe + 约束 inpainting</div>
-    <div class="flow">语言+多视图
- → VLM 出 3D keyframe(粗目标)
- → 反向去噪每步:
-   min 距keyframe  s.t. 似然≤γ
- → 投影到"贴近目标且在分布内"</div>
-    <div class="gd"><b>引导=投影：</b>把动作投影到"既贴近 keyframe、又留在训练分布高似然区"的集合。keyframe 不准时靠固定阈值 γ 被动拉回。</div>
-  </div>
-
-  <div class="card">
-    <h4>SuSIE <span class="yr">2023</span></h4>
-    <div class="meta">图像编辑生成 subgoal + 条件执行</div>
-    <div class="flow">当前图+语言
- → InstructPix2Pix 编辑出"未来 subgoal 图"
- → goal-conditioned policy
-   π(a | 当前, subgoal) 直接够到
- → 每 k 步刷新 subgoal</div>
-    <div class="gd"><b>引导=条件执行：</b>生成目标图后训一个专门的低层策略去够到它。<b>生成即信，不检验可达性</b>（作者自承是 future work）。</div>
-  </div>
-
-  <div class="card">
-    <h4>GHIL-Glue <span class="yr">2024</span></h4>
-    <div class="meta">SuSIE + 过滤坏 subgoal</div>
-    <div class="flow">生成 K 个候选 subgoal
- → 分类器 f(s,g,l) 打分
-   (ResNet+语言, 判"是否导向进展")
- → argmax 选 top-1, 其余丢弃
- → 喂 goal-conditioned policy</div>
-    <div class="gd"><b>引导=过滤+执行：</b>用<b>任务进展分类器</b>挑最好的候选。但是<b>二元丢弃</b>、看不出"可达性"、底层仍是条件执行（明确放弃了梯度引导路线）。</div>
-  </div>
-
-  <div class="card">
-    <h4>DynaGuide <span class="yr">2025</span></h4>
-    <div class="meta">动态模型梯度引导（本方案骨架）</div>
-    <div class="flow">人工给定 g+/g- 图像
- → 动态模型 f(o,a)→未来 latent
- → 算到 g+/g- 的距离
- → ∇_a 求梯度, 注入 DDIM 去噪
- → "推"动作走向 g+ 避开 g-</div>
-    <div class="gd"><b>引导=梯度：</b>独立动态模型预测动作后果，对目标距离求梯度引导冻结策略。<b>目标人工给定、开环、假设引导永远可信。</b></div>
-  </div>
-
-  <div class="card">
-    <h4>VLS <span class="yr">2026</span></h4>
-    <div class="meta">VLM 写 reward 代码 + 几何势场</div>
-    <div class="flow">OOD 输入
- → SAM+DINOv2+深度 → 3D keypoint
- → VLM 写可微 PyTorch reward R_s
- → ∇R_s 注入去噪 + FK 重采样 + RBF
- → 闭环 Schmitt 切 stage</div>
-    <div class="gd"><b>引导=梯度：</b>VLM 直接生成 reward 函数（几何势场），无独立动态模型。<b>无负目标、无可信度收手</b>，自适应 λ 基于相对 reward。</div>
-  </div>
-
-  <div class="card">
-    <h4>OmniGuide <span class="yr">2026</span></h4>
-    <div class="meta">3D 能量场统一多源引导</div>
-    <div class="flow">VLM点/3D模型/人姿
- → 统一为 3D 空间 吸引子+排斥子
- → 能量 L(X), ∇_X L
- → 经可微运动学 backprop 到动作
- → 注入 flow matching(π0.5/GR00T)</div>
-    <div class="gd"><b>引导=梯度：</b>把一切引导"几何化"为 3D 吸引/排斥能量场。语义也先 collapse 成一个 3D 点。<b>恒定强度、开环、无可信度建模。</b></div>
-  </div>
-
-</div>
-<p class="note">共同点（赛道已占满的部分）：都冻结策略、都在去噪/采样过程注入引导、都用 VLM/外部模型产目标、都做正负两极。<b style="color:#ff9a9a">共同盲区：全都假设引导信号可信，没有检验"目标是否可达/是否幻觉"。</b></p>
-
-<h2>三、我们的方案：VLMGuide</h2>
-<div class="lead ours">
-<b>核心主张：</b>现有方法都<b>默认引导目标可信</b>，但真实 OOD 下 VLM 会幻觉、生成目标会不可达，盲目引导反而有害。我们把<b style="color:#ffb454">"目标可达性/可信度检验"</b>作为一等公民——用视觉动力学判断目标到底够不够得到，不可达就自适应收手或闭环重生成。<br><span class="note">这正是 SuSIE、GHIL-Glue 等代表作公开承认、但都未做的方向。</span>
-</div>
-
-<h3>三合一架构与数据流</h3>
-<div class="pipe">
-  <span class="pill"><b>VLM</b><br>理解任务·诊断失败</span>
-  <span class="arrow">→</span>
-  <span class="pill"><b>图像编辑</b><br>生成稠密 goal 图(正/负)</span>
-  <span class="arrow">→</span>
-  <span class="pill"><b>视觉动力学</b><br>预测动作后果(latent)</span>
-  <span class="arrow">→</span>
-  <span class="pill" style="border-color:#ffb454"><b style="color:#ffb454">可达性检验</b><br>够不到→收手/重编辑</span>
-  <span class="arrow">→</span>
-  <span class="pill"><b>梯度引导</b><br>冻结 π0.5 flow matching</span>
-</div>
-<div class="flow" style="color:#ffd9a0">观测 I_t + 任务 l
- → VLM 生成图像编辑指令（+失败诊断）
- → 图像编辑模型 出 goal 图 I_goal（RGB 给人/VLM 看；编码到 DINOv2 latent 求梯度）
- → 视觉动力学 f(φ(I_t), a) → 预测未来 latent
- → 可达性 c = 动作空间里能否够到 φ(I_goal)?   ← 核心
-      可达 → α(c) 正常引导
-      不可达/幻觉 → 减弱引导 / 收手 / 让 VLM 重新编辑
- → classifier guidance 注入 π0.5 采样 → 执行 → 闭环诊断</div>
-
-<h3>循序渐进的分阶段路线（不一上来做全套）</h3>
-<div class="stages">
-  <div class="stage"><span class="s">S0</span> 复现梯度引导基线（给定目标）</div>
-  <div class="stage"><span class="s">S1</span> 接图像编辑生成目标</div>
-  <div class="stage"><span class="s">S2 ★</span> 加可达性检验（关键验证点）</div>
-  <div class="stage"><span class="s">S3</span> 不确定性自适应引导强度</div>
-  <div class="stage"><span class="s">S4</span> VLM 闭环诊断+重编辑+负目标</div>
-  <div class="stage"><span class="s">S5</span> 松灵双臂真机·contact-rich</div>
-</div>
-<p class="note">每阶段独立验证、出一个结果再进下一步。S0→S1→S2 是地基，<b style="color:#ffb454">S2（可达性检验）是 go/no-go 卡点</b>——做不出正向结果就止损，避免盲目投入。</p>
-
-<h2>四、与已有工作的区别（四条护城河）</h2>
-<div class="moat">
-  <div class="m"><b>① 可达性 vs 任务进展分类</b><br>GHIL-Glue 用分类器判"是否导向进展"，看不出物理可达性；我们用视觉动力学判"动作究竟够不够得到"。<span class="note">且这是 GHIL-Glue 自己点名的 future work。</span></div>
-  <div class="m"><b>② 梯度引导冻结 VLA vs 条件执行</b><br>SuSIE/GHIL-Glue 训专门低层策略去够目标；我们直接梯度引导冻结的 π0.5，享受大模型能力，不训低层。</div>
-  <div class="m"><b>③ 连续自适应 vs 二元过滤</b><br>它们对坏目标"丢弃/不丢弃"二选一；我们按可信度<b>连续</b>调节引导强度、不确定时收手。</div>
-  <div class="m"><b>④ 闭环重编辑 vs 生成即信</b><br>它们生成目标后直接用；我们让 VLM 根据失败诊断<b>重新生成目标</b>，形成闭环纠错。</div>
-</div>
-
-<h3>预期效果</h3>
+<h3>1.2 论文报告的 OOD（文献补充）</h3>
 <div class="tablewrap">
-<table style="min-width:600px">
+<table>
+<thead><tr><th>OOD 类型</th><th>来源论文</th><th>描述</th></tr></thead>
+<tbody>
+<tr><td>推理-动作执行落差</td><td>DWYS/SEAL (2026)</td><td>VLA 的文字 plan 100% 正确，但动作没执行对 plan</td></tr>
+<tr><td>视觉干扰（背景/干扰物/换本体）</td><td>ARRO (2026)</td><td>像素层 mask 即可解决，无需进 VLA 内部</td></tr>
+<tr><td>空间/几何偏移</td><td>VLS/OmniGuide (2026)</td><td>位置偏移/障碍物/视角变化，在动作空间加梯度可解</td></tr>
+<tr><td>语义-可供性 OOD</td><td>DynaGuide (2025)</td><td>新物体/新场景的行为选择，动态模型梯度引导</td></tr>
+<tr><td>行为组合/新行为</td><td>VERA/InSight (2026)</td><td>需视频世界模型/数据飞轮+retrain，大机构主战场</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lead">
+<b>关键洞察：</b>四类失败<b>不在同一层</b>——没有一个万能方法同时治全部。第 2 类（行为先验缺失）是引导类方法的<b>绝对盲区</b>（引导只能在已有分布里重加权，造不出没学过的动作），也是 VERA/InSight 等大机构主战场。<b>第 1 类（familiarity bias）+ 第 3 类（方位指令）</b>是推理时引导能发力的、且所有竞品都没正面做的空白。
+</div>
+
+<!-- ===================== PART 2: 当前解决方案 ===================== -->
+<h2>二、当前解决方案（竞品怎么做引导）</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>方法</th><th>引导层</th><th>引导信号</th><th>解决哪类 OOD</th><th>真机</th><th>边界/没做什么</th></tr></thead>
+<tbody>
+<tr><td class="name">DynaGuide<div class="yr">2025 Stanford</div></td><td>动作空间（梯度）</td><td>独立动态模型梯度</td><td>分布内行为选择</td><td class="yes">✓</td><td>目标人工给定、开环、假设可信</td></tr>
+<tr><td class="name">VLS<div class="yr">2026 UW</div></td><td>动作空间（梯度+FK）</td><td>VLM 写 reward 代码</td><td>几何/空间</td><td class="yes">✓</td><td>无负目标、无可信度收手</td></tr>
+<tr><td class="name">OmniGuide<div class="yr">2026 UPenn</div></td><td>动作空间（3D能量梯度）</td><td>VLM点+3D模型</td><td>几何/空间</td><td class="yes">✓</td><td>恒定开环引导、语义 collapse 为单点</td></tr>
+<tr><td class="name">DISCO<div class="yr">2024 NUS</div></td><td>动作分布（投影）</td><td>VLM 3D keyframe</td><td>几何/分布</td><td class="yes">✓</td><td>固定阈值γ被动、DDPM</td></tr>
+<tr><td class="name">DWYS/SEAL<div class="yr">2026 NVIDIA/CMU</div></td><td>动作空间（重采样）</td><td>VLM 验证执行对齐</td><td>推理-动作落差</td><td class="no">✗ 纯仿真</td><td>依赖 forward rollout oracle、二值丢弃</td></tr>
+<tr><td class="name">ARRO<div class="yr">2026 UTN</div></td><td>像素层（mask）</td><td>Grounding DINO+SAM2</td><td>视觉干扰</td><td class="yes">✓</td><td>目标物体不能 mask，新物体 OOD 够不到</td></tr>
+<tr><td class="name">Goal-VLA<div class="yr">2026 NUS</div></td><td>替代 VLA（几何planner）</td><td>VLM 生成目标图</td><td>语义（零样本）</td><td class="yes">✓</td><td>rigid-grasp 假设，做不了接触丰富任务</td></tr>
+<tr><td class="name">VERA<div class="yr">2026 MIT</div></td><td>替代 VLA（14B 视频+Jacobian IDM）</td><td>视频 rollout + 图像雅可比反解</td><td>行为泛化（大算力）</td><td class="yes">✓</td><td>14B 重型，替代而非引导冻结 VLA</td></tr>
+<tr><td class="name">SuSIE/GHIL-Glue<div class="yr">2023-24 Berkeley</div></td><td>目标层（生成+过滤）</td><td>图像编辑 subgoal</td><td>语义+低层精度</td><td class="yes">✓</td><td>需训低层策略、SuSIE 不检验可达性</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lead">
+<b>共同盲区：</b>所有竞品都在<b>动作/目标/像素</b>层操作——<b>没有一篇进入 VLA 内部（注意力/表示层）做推理时 steering</b>。而真机第 1 类"新旧混合偏向旧"的失败机制恰在 VLA 内部注意力分配——这是它们集体够不到的。
+</div>
+
+<!-- ===================== PART 3: 推荐课题 ===================== -->
+<h2>三、推荐课题</h2>
+
+<div class="rec">
+<h3>指令感知的注意力引导（Instruction-Aware Attention Steering for Frozen VLA）</h3>
+
+<p><b>解决的 OOD</b>：第 1 类（新旧物体混合偏向旧）+ 第 3 类（方位指令跟随不了）——真机高频、全竞品空白</p>
+
+<h3>理由（为什么选这个）</h3>
+<div class="moat">
+<div class="m"><b>① 真空白</b><br>所有竞品在动作/目标/像素层；无人在 VLA <b>内部注意力</b>做推理时 steering（NLP 有 activation steering，机器人空白）</div>
+<div class="m"><b>② 真机高频</b><br>"新旧混合偏向旧"是部署 VLA 的必然场景（真机一手观察），不是实验室构造的 toy problem</div>
+<div class="m"><b>③ 不 overclaim</b><br>诚实说解决选择层 OOD（第1/3类），不碰行为先验 OOD（第2类，那是引导盲区+大机构主场）</div>
+<div class="m"><b>④ 可视化强</b><br>主图=引导前后 attention map 对比（从关注旧物体→关注新物体），一张图讲清故事</div>
+</div>
+
+<h3>初步方案</h3>
+<div class="flow">观测 I_t + 指令 l
+ → VLM 解析"指令要抓的目标物体是哪个/放到哪个方位"
+ → 在冻结 π0.5 视觉编码器的 attention 层：
+     对"目标物体对应的 token"加权提升（或抑制旧物体 token）
+ → VLA 的动作生成"听到"了正确物体的信号
+ → 动作自然从"抓旧物体"变成"抓指令要的新物体"
+
+不改 π0.5 权重、不重训、不加动作空间梯度
+本质 = 推理时 attention re-weighting，从 NLP activation steering 迁移到机器人</div>
+
+<h3>分阶段路线（由简到复杂）</h3>
+<div class="stages">
+<div class="stage"><span class="s">P0 ★</span> 探针实验：可视化 attention（生死命门）</div>
+<div class="stage"><span class="s">P1</span> VLM 定位目标 → attention 提升目标 token</div>
+<div class="stage"><span class="s">P2</span> 方位指令 → 空间位置 attention 强化</div>
+<div class="stage"><span class="s">P3</span> IBVS 思想：object 误差→注意力修正</div>
+<div class="stage"><span class="s">P4</span> 松灵双臂真机验证</div>
+</div>
+
+<h3>期望效果</h3>
+<div class="tablewrap">
+<table style="min-width:500px">
 <thead><tr><th>维度</th><th>预期</th></tr></thead>
 <tbody>
-<tr><td class="name" style="white-space:nowrap">效果</td><td>新物体/新场景抓取成功率显著优于原始 π0.5 与开环引导方法；尤其在"语义对但动力学不可达"场景明显胜出</td></tr>
-<tr><td class="name">成本</td><td>不重训 VLA，仿真单卡可验证，复用开源图像编辑模型与已有松灵数据</td></tr>
-<tr><td class="name">差异化</td><td>首个把"引导目标可达性检验"做进推理时引导的工作，相比同类（直接信目标）更鲁棒</td></tr>
-<tr><td class="name">产出</td><td>面向 CoRL / RSS 等顶会；可直接落地松灵双臂平台</td></tr>
+<tr><td class="name">第 1 类</td><td>新旧混合场景：引导后正确抓取新物体的成功率从 baseline 的低值（偏向旧物体）<b>显著提升</b></td></tr>
+<tr><td class="name">第 3 类</td><td>方位指令（"放左边"）执行正确率从接近 0 提升到可用水平</td></tr>
+<tr><td class="name">对比竞品</td><td>在 ARRO mask 不了、VLS/OmniGuide 几何引导不解决的"物体选择 OOD"上胜出</td></tr>
+<tr><td class="name">成本</td><td>不重训 VLA，本机 3090 即可验证，复用开源 VLM + 冻结 π0.5</td></tr>
 </tbody>
 </table>
 </div>
 
-<h3>关键差异化实验</h3>
-<div class="lead">
-构造<b>"语义对但动力学不可达"</b>的场景 —— VLM/图像编辑生成的目标语义正确，但当前状态下物理够不到：
-<div class="flow" style="margin-top:10px">SuSIE（直接执行）        → 失败
-GHIL-Glue（任务进展分类）→ 误判为好目标, 仍失败
-VLMGuide（可达性检验）   → 识别不可达 → 收手/重编辑 → 成功</div>
-一个实验直接证明"<b style="color:#ffb454">可达性引导 &gt; 任务进展分类过滤</b>"，是区别于同类工作的最强证据。
+<h3>预计可发表会议</h3>
+<div class="tablewrap">
+<table style="min-width:400px">
+<thead><tr><th>会议</th><th>概率</th><th>前提</th></tr></thead>
+<tbody>
+<tr><td class="name">CoRL 2027</td><td class="mid">中</td><td>P0 探针+P1 引导+P4 真机全做出，且效果显著</td></tr>
+<tr><td class="name">RSS 2027</td><td class="mid">中</td><td>同上，且故事讲得好（NLP→机器人迁移的 novelty）</td></tr>
+<tr><td class="name">ICRA 2027</td><td class="yes">中高</td><td>仿真+简单真机验证即可</td></tr>
+<tr><td class="name">RA-L</td><td class="yes">高</td><td>探针实验+一个引导方法+真机验证</td></tr>
+</tbody>
+</table>
+</div>
+<p class="note">关键 go/no-go：P0 探针实验（新旧混合时 attention 是否偏向旧物体）。通过后才投入后续。</p>
 </div>
 
+<!-- ===================== PART 4: 和竞品的区别 ===================== -->
+<h2>四、我们的方案与所有竞品的区别</h2>
+
+<div class="tablewrap">
+<table>
+<thead><tr><th>竞品</th><th>操作层</th><th>我们的差异</th></tr></thead>
+<tbody>
+<tr><td class="name">DynaGuide / VLS / OmniGuide</td><td>动作空间梯度</td><td>我们在 VLA <b>内部注意力层</b>，源头纠正"听哪个物体"</td></tr>
+<tr><td class="name">ARRO</td><td>像素层 mask</td><td>ARRO mask 任务<b>无关</b>像素；我们 steer 任务<b>核心</b>物体间的注意力竞争</td></tr>
+<tr><td class="name">DWYS/SEAL</td><td>动作重采样+验证</td><td>SEAL 依赖 forward rollout oracle；我们不需仿真，直接 steer 注意力</td></tr>
+<tr><td class="name">Goal-VLA / VERA</td><td>替代 VLA</td><td>我们<b>保留</b>冻结 VLA 学习先验，轻量引导不替代</td></tr>
+<tr><td class="name">SuSIE / GHIL-Glue</td><td>目标层</td><td>我们不生成子目标，直接 steer VLA 内部（不需训低层策略）</td></tr>
+<tr><td class="name">NLP Activation Steering</td><td>LLM 内部</td><td>首次从 NLP 迁移到 <b>VLA/机器人</b>场景，解决物理 OOD 而非 safety</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="lead">
+<b>一句话核心 claim：</b>VLA 在新旧物体混合部署场景的失败，不是因为"不认得新物体"，而是训练高频物体的<b>注意力优势（familiarity bias）劫持了动作生成</b>。我们首次在推理时 steering VLA 的<b>内部视觉注意力</b>，把"听哪个物体"的选择权从训练频率还给指令语义。
+</div>
+
+<!-- ===================== PART 5: IBVS 启发 ===================== -->
+<h2>五、IBVS 思想的保留（方向 B 查证后的转化）</h2>
+
+<div class="lead">
+<b>背景</b>：用户有 IBVS 经验，提出"学一个通用的图像误差→运动映射攻行为 OOD"。查证发现 VERA(MIT 14B) 已做了"视频 rollout + Jacobian IDM 反解动作"的合体，正面撞车。但 IBVS 思想可以轻量用在注意力层——
+</div>
+
+<div class="flow">传统 IBVS：δ运动 = J⁺ · (特征_目标 - 特征_当前)  → 特征误差驱动运动
+用户变体：δ_attention = f(表示_目标物体 - 表示_VLA当前关注) → 表示误差驱动注意力修正
+
+差异：VERA 用 Jacobian 在动作空间反解；我们用误差信号在注意力空间做修正
+      保留 IBVS 的"误差驱动"核心思想，但作用层从运动→注意力</div>
+
+<p class="note">这是 P3 阶段的探索内容（非必须），主方案 P0-P2 不依赖它。</p>
+
+<!-- ===================== FOOTER ===================== -->
 <footer>
-VLMGuide 研究方案 · 推理时引导 VLA 对比 · 基于已分析的 DISCO/SuSIE/GHIL-Glue/DynaGuide/VLS/OmniGuide/ForeAct/ViTaL-Steering/G0.5/DIAL 等论文 · 2026-06 · 讨论稿
+VLMGuide 课题规划 · OOD 全景对比 · 基于 DynaGuide/VLS/OmniGuide/DISCO/SEAL/ARRO/Goal-VLA/VERA/NJF/SuSIE/GHIL-Glue/InSight 等 20+ 篇论文深度分析 + 松灵双臂真机观察 · 2026-06-26 · 讨论稿
 </footer>
 </div>
 </body>
