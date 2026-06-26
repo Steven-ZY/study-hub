@@ -1,0 +1,28 @@
+{
+  "pages": [
+    {
+      "source": "/home/chenzhiyuan/projects/starVLA/_codebase_analysis/vla_architecture_explorer.html",
+      "target": "pages/starVLA/vla_architecture_explorer.html",
+      "title": "StarVLA 架构交互式学习",
+      "category": "vla"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/starVLA/_codebase_analysis/code_walkthrough.html",
+      "target": "pages/starVLA/code_walkthrough.html",
+      "title": "OpenPI & StarVLA 代码精读课",
+      "category": "vla"
+    },
+    {
+      "source": "/home/chenzhiyuan/paper/VLMGuide/VLMGuide_对比网页.html",
+      "target": "pages/VLMGuide/VLMGuide_对比网页.html",
+      "title": "VLM Guide 对比网页",
+      "category": "vlm"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/DynaGuide/_codebase_analysis/index.html",
+      "target": "pages/DynaGuide/index.html",
+      "title": "DynaGuide 仓库分析",
+      "category": "wm"
+    }
+  ]
+}
