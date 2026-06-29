@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diffusion Policy 学习课</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;padding:0}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:40px 20px 20px}
+h1{font-size:2.2em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:24px 0;border-bottom:1px solid var(--border)}
+.tab{padding:10px 18px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.9em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade 0.3s}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+h2{color:var(--accent);margin:28px 0 14px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:20px 0 10px}
+h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.8em;line-height:1.5;margin:10px 0}
+code{color:var(--green)}
+.path{color:var(--orange);font-family:monospace;font-size:0.88em}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:0.88em}
+th{color:var(--accent);background:var(--surface2)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;font-family:'Cambria Math',serif;font-size:1.05em;margin:12px 0;color:var(--text)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 24px;color:var(--dim)}
+li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>Diffusion Policy 学习课</h1>
+<p class="sub">Visuomotor Policy Learning via Action Diffusion · RSS 2023 / IJRR 2024</p>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="intro">1. 是什么</div>
+<div class="tab" data-tab="theory">2. 原理与公式</div>
+<div class="tab" data-tab="arch">3. 架构与数据流</div>
+<div class="tab" data-tab="code">4. 代码精读</div>
+<div class="tab" data-tab="design">5. 三大设计</div>
+<div class="tab" data-tab="exp">6. 实验与对比</div>
+<div class="tab" data-tab="quiz">7. 自测</div>
+</div>
+
+
+<!-- Panel 1: Intro -->
+<div class="panel active" id="panel-intro">
+<div class="section">
+<h2>1.1 一句话理解</h2>
+<p>Diffusion Policy 把"机器人看图选动作"这件事，建模成一个<span class="hl">去噪过程</span>：从纯随机噪声出发，以当前观测为条件，迭代地把噪声"擦"成一段平滑的未来动作序列。</p>
+<div class="key"><b>核心类比</b>：就像 Stable Diffusion 从噪声生成图片（以文本为条件），Diffusion Policy 从噪声生成<b>动作序列</b>（以视觉观测为条件）。生成的不是像素，而是机器人未来 16 步要怎么动。</div>
+</div>
+
+<div class="section">
+<h2>1.2 为什么需要它？传统方法的痛点</h2>
+<table>
+<tr><th>方法</th><th>怎么做</th><th>痛点</th></tr>
+<tr><td>显式策略 (回归)</td><td>网络直接输出动作 a = f(o)</td><td>多模态崩溃：左绕/右绕两条路被平均成"撞墙"</td></tr>
+<tr><td>隐式策略 (IBC)</td><td>学能量函数 E(o,a)，argmin 取动作</td><td>训练不稳定：需负采样估计配分函数 Z</td></tr>
+<tr><td>BET</td><td>动作离散化 + Transformer</td><td>无法 commit：多模态间摇摆</td></tr>
+<tr><td class="hl">Diffusion Policy</td><td class="hl">学分数函数，迭代去噪生成</td><td class="hl">天然多模态 + 训练稳定 + 高维友好</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>1.3 多模态问题——最关键的动机</h2>
+<p>假设演示数据里，人遇到障碍物有时往左绕、有时往右绕。这是<b>多模态</b>动作分布（同一观测对应多个合理动作）。</p>
+<ul>
+<li><b>回归网络</b>：训练目标是最小化 MSE，会输出左和右的<b>平均值</b>——直接撞上障碍物。</li>
+<li><b>Diffusion Policy</b>：学的是整个动作<b>分布</b>，采样时随机落入"左绕"或"右绕"某一个模式，且在一次 rollout 中坚持到底（commit）。</li>
+</ul>
+<div class="note">这就是为什么 Diffusion Policy 在 Push-T 等需要多种策略的任务上能到 95%，而回归基线只有 20%。</div>
+</div>
+</div>
+
+<!-- Panel 2: Theory -->
+<div class="panel" id="panel-theory">
+<div class="section">
+<h2>2.1 DDPM 基础：前向加噪 & 反向去噪</h2>
+<p>扩散模型有两个方向：</p>
+<h4>前向过程（加噪，训练时用）</h4>
+<p>给干净动作序列 A⁰ 逐步加高斯噪声，K 步后变成纯噪声 Aᴷ ~ N(0, I)。任意一步可一次性算出：</p>
+<div class="eq">Aᵏ = √(ᾱₖ)·A⁰ + √(1−ᾱₖ)·ε,&nbsp;&nbsp; ε ~ N(0, I)</div>
+<p>ᾱₖ 由噪声调度（noise schedule）决定，k 越大噪声越多。</p>
+
+<h4>反向过程（去噪，推理时用）</h4>
+<p>从噪声 Aᴷ 出发，训练一个网络 ε_θ 预测"这一步加了多少噪声"，然后减掉它：</p>
+<div class="eq">Aᵏ⁻¹ = α·(Aᵏ − γ·ε_θ(Oₜ, Aᵏ, k)) + N(0, σ²I)</div>
+<p>迭代 K 次，噪声被逐步擦除，得到干净动作 A⁰。</p>
+</div>
+
+<div class="section">
+<h2>2.2 训练目标：超级简单的 MSE</h2>
+<p>训练时不需要跑完整的去噪链，只需：</p>
+<ol>
+<li>取一段真实动作 A⁰</li>
+<li>随机采一个步数 k ~ U(1, K) 和噪声 ε ~ N(0, I)</li>
+<li>构造带噪动作 Aᵏ = √(ᾱₖ)·A⁰ + √(1−ᾱₖ)·ε</li>
+<li>让网络预测噪声，算 MSE</li>
+</ol>
+<div class="eq">L = MSE( ε, &nbsp; ε_θ(Oₜ, Aᵏ, k) )</div>
+<div class="key"><b>为什么稳定？</b> 这个 loss 不涉及配分函数 Z(o,θ)，不需要负采样（对比 IBC）。本质上学的是分数函数 ∇ₐ log p(a|o) = −ε_θ(a,o)/σ，训练曲线平滑，不用精挑 checkpoint。</div>
+</div>
+
+<div class="section">
+<h2>2.3 条件去噪：观测是"条件"不是"被生成对象"</h2>
+<p>关键设计：视觉观测 Oₜ 是去噪网络的<b>条件输入</b>，而不是要生成的东西。</p>
+<div class="eq">p(Aₜ | Oₜ) &nbsp;—— 只生成动作，观测当条件</div>
+<p>对比"联合分布 p(Aₜ, Oₜ)"的做法（如原始 inpainting 方案），这样设计有两大好处：</p>
+<ul>
+<li>视觉编码器<b>只前向一次</b>，与 K 次去噪解耦 → 推理快得多</li>
+<li>可以端到端训练视觉编码器</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>2.4 噪声调度 & 推理加速</h2>
+<table>
+<tr><th></th><th>训练</th><th>推理</th></tr>
+<tr><td>去噪步数</td><td>K = 100 步</td><td>DDIM 10~16 步</td></tr>
+<tr><td>调度</td><td colspan="2">iDDPM 的 Square Cosine Schedule</td></tr>
+<tr><td>延迟</td><td>—</td><td>~0.1s (RTX 3080)</td></tr>
+</table>
+<p>训练用 DDPM 100 步保证质量；推理换成 <span class="hl">DDIM</span>（确定性采样）只需 10~16 步，满足 10Hz 实时控制。</p>
+</div>
+</div>
+
+
+<!-- Panel 3: Architecture -->
+<div class="panel" id="panel-arch">
+<div class="section">
+<h2>3.1 整体数据流（CNN 变体, 图像观测）</h2>
+<pre><code>=== 训练阶段 ===
+
+2× RGB [B,To,3,240,320]
+   │
+   ▼ ResNet-18 ×2 (每个相机独立)
+   │   GroupNorm + SpatialSoftmax 替代 BN + 全局池化
+   ▼
+obs_feat [B, To×128]  ──────────────┐
+                                     │ (作为 global_cond)
+GT actions A⁰ [B,Tp,Da]             │
+   │ 采样 k~U(1,100), ε~N(0,I)      │
+   │ Aᵏ = √ᾱ·A⁰ + √(1-ᾱ)·ε        │
+   ▼                                 │
+┌──────────────────────────────┐    │
+│  Conditional UNet1D (ε_θ)    │◄───┘ FiLM 注入
+│  输入: Aᵏ [B,Tp,Da]          │◄─── diffusion step k (正弦嵌入)
+│  Conv1D→GroupNorm→FiLM→Mish  │
+│  下采样[256,512,1024]+上采样  │
+└──────────┬───────────────────┘
+           ▼
+      ε_pred [B,Tp,Da]
+           │
+      Loss = MSE(ε, ε_pred)
+
+=== 推理阶段 (Receding Horizon) ===
+
+obs [B,To,...] ──→ ResNet ──→ obs_feat (只算一次)
+                                  │
+Aᴷ ~ N(0,I) [B,Tp,Da]            │
+   │  DDIM 去噪 10~16 步          │
+   ▼  Aᵏ⁻¹ = scheduler.step(...) ◄┘
+  ...迭代
+   ▼
+A⁰ [B,Tp=16,Da]
+   │
+   ├─ 执行前 Ta=8 步 ──→ 机器人
+   └─ 丢弃后 8 步
+   ↻ 每 8 步重新规划</code></pre>
+</div>
+
+<div class="section">
+<h2>3.2 关键张量维度表</h2>
+<table>
+<tr><th>张量</th><th>维度</th><th>含义</th></tr>
+<tr><td>RGB 输入</td><td>[B, To, 3, 240, 320]</td><td>To=2 步观测, 2 路相机</td></tr>
+<tr><td>视觉特征(每路)</td><td>[B, To, 64]</td><td>ResNet-18+SpatialSoftmax</td></tr>
+<tr><td>观测条件</td><td>[B, To×128]</td><td>多路拼接, 作 global_cond</td></tr>
+<tr><td>噪声动作序列</td><td>[B, Tp, Da]</td><td>Tp=16, Da=2~14</td></tr>
+<tr><td>扩散步嵌入</td><td>[B, 256]</td><td>标量 k → 正弦向量</td></tr>
+<tr><td>ε_pred</td><td>[B, Tp, Da]</td><td>预测噪声</td></tr>
+<tr><td>执行子序列</td><td>[B, Ta, Da]</td><td>Ta=8, 实际下发</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>3.3 两种去噪网络</h2>
+<table>
+<tr><th></th><th>CNN (ConditionalUnet1D)</th><th>Transformer</th></tr>
+<tr><td>基础</td><td>1D 时间卷积 (Janner 2022)</td><td>minGPT decoder</td></tr>
+<tr><td>条件注入</td><td>FiLM (scale/bias 调制)</td><td>交叉注意力</td></tr>
+<tr><td>优点</td><td>开箱即用, 超参稳定</td><td>高频动作、长horizon更好</td></tr>
+<tr><td>缺点</td><td>偏低频, 过度平滑</td><td>超参敏感(dropout/wd)</td></tr>
+<tr><td>适用</td><td>大部分任务的默认选择</td><td>ToolHang(高精度)、Kitchen</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>3.4 视觉编码器的两个关键改动</h2>
+<div class="key">
+<b>① SpatialSoftmax 替代全局平均池化</b>：保留空间位置信息（物体在哪），对操作任务至关重要。<br><br>
+<b>② GroupNorm 替代 BatchNorm</b>：BatchNorm 的统计量与 batch 耦合，和 EMA（指数滑动平均）冲突；GroupNorm 不依赖 batch，训练更稳定。
+</div>
+<p>此外：每路相机用<b>独立</b>编码器，每个时间步独立编码后拼接。ResNet-18 从头训练效果最好（也可用 CLIP ViT-B/16 微调，50 epoch 达 98%）。</p>
+</div>
+</div>
+
+
+<!-- Panel 4: Code -->
+<div class="panel" id="panel-code">
+<div class="section">
+<h2>4.1 代码地图</h2>
+<table>
+<tr><th>功能</th><th>文件</th></tr>
+<tr><td>策略(lowdim)</td><td class="path">policy/diffusion_unet_lowdim_policy.py</td></tr>
+<tr><td>策略(图像,主力)</td><td class="path">policy/diffusion_unet_hybrid_image_policy.py</td></tr>
+<tr><td>去噪网络 UNet1D</td><td class="path">model/diffusion/conditional_unet1d.py</td></tr>
+<tr><td>视觉编码器</td><td class="path">model/vision/multi_image_obs_encoder.py</td></tr>
+<tr><td>Transformer 变体</td><td class="path">model/diffusion/transformer_for_diffusion.py</td></tr>
+<tr><td>训练循环</td><td class="path">workspace/train_diffusion_unet_hybrid_workspace.py</td></tr>
+<tr><td>噪声调度</td><td>diffusers 的 <code>DDPMScheduler</code></td></tr>
+</table>
+</div>
+
+<div class="section">
+<h3>4.2 训练前向 compute_loss 逐行精读</h3>
+<p><span class="path">policy/diffusion_unet_lowdim_policy.py:169-238</span></p>
+<pre><code>def compute_loss(self, batch):
+    # ═══ 1. 归一化 ═══
+    nbatch = self.normalizer.normalize(batch)
+    obs = nbatch['obs']        # [B, T, Do]
+    action = nbatch['action']  # [B, T, Da]
+
+    # ═══ 2. 准备条件 (三种方式) ═══
+    local_cond = None; global_cond = None
+    trajectory = action
+    if self.obs_as_global_cond:
+        # 主力方式: 观测拍平成 global 条件
+        global_cond = obs[:,:self.n_obs_steps,:].reshape(obs.shape[0], -1)
+        # [B, To*Do] —— 只取前 To=2 步观测!
+    else:
+        # inpainting 方式: 动作和观测拼一起
+        trajectory = torch.cat([action, obs], dim=-1)
+
+    # ═══ 3. 采样噪声 + 随机时间步 ═══
+    noise = torch.randn(trajectory.shape, device=trajectory.device)
+    timesteps = torch.randint(0, 100, (bsz,)).long()  # k ~ U(0,100)
+
+    # ═══ 4. 前向加噪 (一步到位) ═══
+    noisy_trajectory = self.noise_scheduler.add_noise(
+        trajectory, noise, timesteps)
+    #  = √ᾱ·trajectory + √(1-ᾱ)·noise
+
+    # ═══ 5. 预测噪声 ═══
+    pred = self.model(noisy_trajectory, timesteps,
+        local_cond=local_cond, global_cond=global_cond)
+
+    # ═══ 6. MSE Loss (预测 epsilon) ═══
+    target = noise  # prediction_type='epsilon'
+    loss = F.mse_loss(pred, target, reduction='none')
+    loss = loss * loss_mask  # 只在动作维度算 loss
+    return loss.mean()</code></pre>
+<div class="note">整个训练逻辑只有 7 步，核心就是 add_noise → predict → MSE。注意 <code>global_cond</code> 只取前 <code>n_obs_steps=2</code> 步观测，这呼应了消融实验里 To=2 最优的结论。</div>
+</div>
+
+<div class="section">
+<h3>4.3 推理采样 conditional_sample 逐行精读</h3>
+<p><span class="path">policy/diffusion_unet_lowdim_policy.py:60-96</span></p>
+<pre><code>def conditional_sample(self, condition_data, condition_mask,
+        local_cond=None, global_cond=None, **kwargs):
+    # ═══ 1. 从纯噪声起步 ═══
+    trajectory = torch.randn(size=condition_data.shape, ...)  # Aᴷ ~ N(0,I)
+
+    # ═══ 2. 设置去噪步数 (推理只 10~16 步) ═══
+    scheduler.set_timesteps(self.num_inference_steps)
+
+    # ═══ 3. 迭代去噪 ═══
+    for t in scheduler.timesteps:        # 从 K 递减到 0
+        # 3a. 强制已知部分 (inpainting 时用)
+        trajectory[condition_mask] = condition_data[condition_mask]
+        # 3b. 预测噪声
+        model_output = model(trajectory, t,
+            local_cond=local_cond, global_cond=global_cond)
+        # 3c. 去噪一步: Aᵏ → Aᵏ⁻¹
+        trajectory = scheduler.step(
+            model_output, t, trajectory).prev_sample
+
+    trajectory[condition_mask] = condition_data[condition_mask]
+    return trajectory</code></pre>
+<p>然后在 <code>predict_action</code> 中切片取出要执行的 Ta 步：</p>
+<pre><code>start = To          # To=2
+end = start + self.n_action_steps   # +Ta=8
+action = action_pred[:, start:end]  # 只执行中间 8 步</code></pre>
+</div>
+
+<div class="section">
+<h3>4.4 去噪网络 ConditionalUnet1D.forward 逐行精读</h3>
+<p><span class="path">model/diffusion/conditional_unet1d.py:175-235</span></p>
+<pre><code>def forward(self, sample, timestep, local_cond=None, global_cond=None):
+    # sample: [B,T,Da] 噪声动作; timestep: [B] 扩散步
+    sample = rearrange(sample, 'b h t -> b t h')  # 转成 conv1d 格式
+
+    # ═══ 1. 编码扩散步 k → 正弦嵌入 ═══
+    global_feature = self.diffusion_step_encoder(timesteps)  # [B,256]
+    # SinusoidalPosEmb → Linear → Mish → Linear
+
+    # ═══ 2. 拼接观测条件 ═══
+    if global_cond is not None:
+        global_feature = torch.cat([global_feature, global_cond], axis=-1)
+        # [B, 256 + To*obs_dim]  ← 时间步 + 观测 合成总条件
+
+    # ═══ 3. U-Net 下采样 (encoder) ═══
+    x = sample; h = []
+    for resnet, resnet2, downsample in self.down_modules:
+        x = resnet(x, global_feature)   # FiLM 注入条件!
+        x = resnet2(x, global_feature)
+        h.append(x)                     # 存 skip connection
+        x = downsample(x)
+
+    # ═══ 4. 中间层 ═══
+    for mid in self.mid_modules:
+        x = mid(x, global_feature)
+
+    # ═══ 5. 上采样 (decoder) + skip ═══
+    for resnet, resnet2, upsample in self.up_modules:
+        x = torch.cat((x, h.pop()), dim=1)  # U-Net skip
+        x = resnet(x, global_feature)
+        x = resnet2(x, global_feature)
+        x = upsample(x)
+
+    x = self.final_conv(x)
+    return rearrange(x, 'b t h -> b h t')  # [B,T,Da]</code></pre>
+</div>
+
+<div class="section">
+<h3>4.5 FiLM 条件注入——核心机制</h3>
+<p><span class="path">model/diffusion/conditional_unet1d.py:48-66 (ConditionalResidualBlock1D.forward)</span></p>
+<pre><code>def forward(self, x, cond):
+    out = self.blocks[0](x)             # Conv1d → GroupNorm → Mish
+    embed = self.cond_encoder(cond)     # cond → scale & bias
+    if self.cond_predict_scale:
+        embed = embed.reshape(B, 2, out_channels, 1)
+        scale = embed[:,0,...]
+        bias  = embed[:,1,...]
+        out = scale * out + bias        # ← FiLM: 逐通道线性调制
+    else:
+        out = out + embed               # 简化版: 只加 bias
+    out = self.blocks[1](out)
+    return out + self.residual_conv(x)  # 残差连接</code></pre>
+<div class="key"><b>FiLM (Feature-wise Linear Modulation)</b>：把"观测+扩散步"这个条件，转换成对每个卷积通道的 <code>scale</code> 和 <code>bias</code>，逐通道地调制特征。这是把条件信息注入 CNN 的高效方式——不改变网络结构，只调制激活值。</div>
+</div>
+</div>
+
+<!-- Panel 5: Design -->
+<div class="panel" id="panel-design">
+<div class="section">
+<h2>5.1 设计一：闭环动作序列预测 (Receding Horizon)</h2>
+<pre><code>预测 16 步 ──→ 只执行前 8 步 ──→ 丢弃后 8 步 ──→ 重新观测预测
+   Tp=16          Ta=8                            ↻ 循环</code></pre>
+<table>
+<tr><th>参数</th><th>值</th><th>作用</th></tr>
+<tr><td>To 观测 horizon</td><td>2</td><td>看几步历史观测</td></tr>
+<tr><td>Tp 预测 horizon</td><td>16</td><td>一次预测多少步动作</td></tr>
+<tr><td>Ta 执行 horizon</td><td>8</td><td>实际执行多少步后重规划</td></tr>
+</table>
+<p>三大好处：</p>
+<ul>
+<li><b>时间一致性</b>：序列预测避免连续动作来自不同模态导致抖动</li>
+<li><b>抗空闲过拟合</b>：单步策略易困在遥操作暂停段，序列预测不会</li>
+<li><b>延迟鲁棒</b>：预测未来动作天然补偿图像处理/网络延迟</li>
+</ul>
+<div class="note">Ta=8 是大多数任务的最优平衡：太小→重规划频繁、计算贵、抖动；太大→响应慢、无法及时纠错。</div>
+</div>
+
+<div class="section">
+<h2>5.2 设计二：视觉条件化 (Visual Conditioning)</h2>
+<p>把视觉观测当<b>条件</b>而非生成对象：</p>
+<ul>
+<li>视觉编码器只前向<b>一次</b>，K 次去噪复用同一份 obs_feat</li>
+<li>对比"联合 inpainting"方案，计算量大幅下降，实现实时控制</li>
+<li>视觉编码器可端到端训练</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>5.3 设计三：时间序列扩散（CNN vs Transformer）</h2>
+<p>两种去噪网络（见架构 tab）。CNN 用 FiLM、开箱即用；Transformer 用交叉注意力、适合高频动作。</p>
+<div class="warn"><b>经验法则</b>：先用 CNN 变体（超参稳定）。如果任务需要高频/突变动作（如敲击、ToolHang 精密插入），再换 Transformer 变体并仔细调 dropout/weight decay。</div>
+</div>
+
+<div class="section">
+<h2>5.4 配套设计：位置控制优先</h2>
+<p>论文发现 <span class="hl">位置控制 (position control) 一致优于速度控制</span>：</p>
+<ul>
+<li>位置控制下动作多模态更显著，正好是 DP 的强项</li>
+<li>位置控制累积误差更小，更适合序列预测</li>
+</ul>
+<p>有趣的是：基线方法（LSTM-GMM 等）反而在速度控制下更好——这是 DP 的独特协同效应。</p>
+</div>
+</div>
+
+
+<!-- Panel 6: Experiments -->
+<div class="panel" id="panel-exp">
+<div class="section">
+<h2>6.1 仿真结果</h2>
+<p>15 个任务 / 4 个 benchmark（Robomimic, Push-T, Block Push, Franka Kitchen），<span class="hl">平均提升 46.9%</span> 超越所有基线（LSTM-GMM, IBC, BET），在所有任务和观测模态（state/image）均一致领先。</p>
+</div>
+
+<div class="section">
+<h2>6.2 真机结果</h2>
+<table>
+<tr><th>任务</th><th>成功率</th><th>看点</th></tr>
+<tr><td>Push-T</td><td>95%</td><td>vs LSTM-GMM 20%, IBC 0%</td></tr>
+<tr><td>Mug Flip</td><td>90%</td><td>3D旋转+多模态抓取</td></tr>
+<tr><td>Sauce Pour</td><td>79%</td><td>处理空闲动作+精细调整</td></tr>
+<tr><td>Sauce Spread</td><td>100%</td><td>周期动作+自终止</td></tr>
+<tr><td>Shirt Folding</td><td>75%</td><td>双臂9步长horizon</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>6.3 消融研究关键结论</h2>
+<ul>
+<li><b>观测 horizon</b>：state 不敏感；image 偏好 To=2</li>
+<li><b>动作 horizon</b>：Ta=8 最优平衡</li>
+<li><b>延迟鲁棒性</b>：位置控制在 4 步延迟内保持峰值</li>
+<li><b>数据效率</b>：所有数据量下均优于 LSTM-GMM</li>
+<li><b>视觉编码器</b>：端到端训练最佳；CLIP ViT-B/16 微调 50 epoch 达 98%</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>6.4 与其它方法对比</h2>
+<table>
+<tr><th>维度</th><th>Diffusion Policy</th><th>LSTM-GMM</th><th>IBC</th><th>BET</th></tr>
+<tr><td>多模态</td><td class="hl">天然支持+commit</td><td>偏一侧</td><td>偏一侧</td><td>无法commit</td></tr>
+<tr><td>训练稳定</td><td class="hl">平滑(无Z)</td><td>中</td><td>不稳定(需负采样)</td><td>中</td></tr>
+<tr><td>动作生成</td><td>迭代去噪10-16步</td><td>单步</td><td>优化argmin</td><td>分类+offset</td></tr>
+<tr><td>推理速度</td><td>~0.1s</td><td>快</td><td>慢</td><td>快</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>6.5 局限性</h2>
+<ul>
+<li>继承行为克隆局限：演示数据不足时性能受限</li>
+<li>推理延迟高于单步方法（LSTM-GMM）</li>
+<li>Transformer 变体超参数敏感</li>
+<li>原论文未探索 RL 微调（后续工作填补）</li>
+</ul>
+</div>
+</div>
+
+
+<!-- Panel 7: Quiz -->
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>7. 自测：10 道题检验你学会了没</h2>
+<p>选完会即时判分并给解析。最后有总分。</p>
+<div id="quiz"></div>
+<div id="score" style="margin-top:20px;padding:16px;border-radius:8px;text-align:center;font-size:1.2em;display:none"></div>
+<button id="submitBtn" onclick="gradeQuiz()" style="margin-top:16px;padding:10px 24px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95em">提交答案</button>
+</div>
+</div>
+
+</div><!-- container -->
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+    window.scrollTo(0,0);
+  };
+});
+
+// Quiz data
+const QUIZ=[
+{q:"Diffusion Policy 的核心建模思想是什么？",
+o:["直接回归动作 a=f(o)","学习能量函数后 argmin","将策略建模为条件去噪扩散过程 p(A|O)","用 GMM 拟合动作分布"],
+a:2,e:"DP 把策略建模为条件 DDPM，从噪声迭代去噪生成动作序列，学的是分数函数 ∇ₐlog p(a|o)。"},
+{q:"为什么回归网络在多模态动作分布上会失败？",
+o:["参数太少","会输出多个模式的平均值，落在无效区域","推理太慢","无法处理图像"],
+a:1,e:"MSE 目标使回归网络输出左绕和右绕的平均，正好撞上障碍物。DP 采样落入单一模式并 commit。"},
+{q:"训练时的损失函数是？",
+o:["L = MSE(ε, ε_θ(O, Aᵏ, k))","L = -log p(a|o)","对比损失 InfoNCE","能量函数 + 负采样"],
+a:0,e:"DP 训练就是预测噪声的 MSE，不涉及配分函数 Z，因此训练稳定。"},
+{q:"为什么 DP 训练比 IBC 稳定？",
+o:["用了更大的 batch","损失不涉及配分函数 Z，无需负采样","用了 Transformer","推理步数少"],
+a:1,e:"IBC 需要负采样估计配分函数 Z(o,θ) 导致不稳定；DP 学分数函数与 Z 无关。"},
+{q:"视觉观测在 DP 中扮演什么角色？",
+o:["被生成的目标","去噪网络的条件输入（只前向一次）","噪声来源","损失权重"],
+a:1,e:"观测是条件，视觉编码器只前向一次，与 K 次去噪解耦，大幅降低计算量。"},
+{q:"训练用 100 步去噪，推理为什么只用 10~16 步？",
+o:["精度不重要","用 DDIM 确定性采样加速，满足实时控制","GPU 内存不够","动作维度低"],
+a:1,e:"推理换成 DDIM 只需 10~16 步即可，配合 ~0.1s 延迟满足 10Hz 实时控制。"},
+{q:"Receding Horizon 中 To/Tp/Ta 的典型值和含义？",
+o:["To=16,Tp=8,Ta=2","To=2,Tp=16,Ta=8：看2步、预测16步、执行8步","全部=8","To=8,Tp=2,Ta=16"],
+a:1,e:"看 2 步历史观测、一次预测 16 步动作、只执行前 8 步后重新规划。"},
+{q:"视觉编码器为什么用 GroupNorm 替代 BatchNorm？",
+o:["GroupNorm 更快","BatchNorm 统计量与 batch 耦合，和 EMA 冲突","GroupNorm 参数少","习惯问题"],
+a:1,e:"BatchNorm 依赖 batch 统计量，与 EMA 滑动平均冲突；GroupNorm 不依赖 batch，训练更稳。"},
+{q:"FiLM 在 CNN 变体中的作用是？",
+o:["池化","把条件转成逐通道 scale/bias 来调制特征","注意力","数据增强"],
+a:1,e:"FiLM 把'观测+扩散步'条件转成每个卷积通道的 scale 和 bias，逐通道调制激活值。"},
+{q:"关于动作空间，论文的关键发现是？",
+o:["速度控制总是更好","位置控制一致优于速度控制（与DP协同）","两者无差异","只能用力控"],
+a:1,e:"位置控制下动作多模态更显著且累积误差小，正是 DP 的强项；基线方法反而偏好速度控制。"}
+];
+
+function renderQuiz(){
+  const c=document.getElementById('quiz');
+  QUIZ.forEach((item,i)=>{
+    const div=document.createElement('div');
+    div.style.cssText='margin:18px 0;padding:16px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';
+    let html=`<h4 style="color:var(--text);margin-bottom:10px">Q${i+1}. ${item.q}</h4>`;
+    item.o.forEach((opt,j)=>{
+      html+=`<label style="display:block;padding:8px 12px;margin:5px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-${i}-${j}">
+        <input type="radio" name="q${i}" value="${j}" style="margin-right:8px">${opt}</label>`;
+    });
+    html+=`<div id="exp-${i}" style="display:none;margin-top:8px;padding:10px;border-radius:6px;font-size:0.88em"></div>`;
+    div.innerHTML=html;
+    c.appendChild(div);
+  });
+}
+
+function gradeQuiz(){
+  let score=0;
+  QUIZ.forEach((item,i)=>{
+    const sel=document.querySelector(`input[name="q${i}"]:checked`);
+    const exp=document.getElementById('exp-'+i);
+    exp.style.display='block';
+    // reset option styles
+    item.o.forEach((_,j)=>{
+      const lab=document.getElementById(`opt-${i}-${j}`);
+      lab.style.background='var(--surface)';lab.style.borderColor='var(--border)';
+    });
+    // mark correct answer green
+    document.getElementById(`opt-${i}-${item.a}`).style.borderColor='var(--green)';
+    document.getElementById(`opt-${i}-${item.a}`).style.background='rgba(52,211,153,0.12)';
+    if(sel){
+      const v=parseInt(sel.value);
+      if(v===item.a){
+        score++;
+        exp.style.background='rgba(52,211,153,0.1)';exp.style.border='1px solid var(--green)';
+        exp.innerHTML='✅ 正确！'+item.e;
+      }else{
+        document.getElementById(`opt-${i}-${v}`).style.borderColor='var(--red)';
+        document.getElementById(`opt-${i}-${v}`).style.background='rgba(248,113,113,0.12)';
+        exp.style.background='rgba(248,113,113,0.1)';exp.style.border='1px solid var(--red)';
+        exp.innerHTML='❌ 正确答案是 '+String.fromCharCode(65+item.a)+'。'+item.e;
+      }
+    }else{
+      exp.style.background='rgba(251,146,60,0.1)';exp.style.border='1px solid var(--orange)';
+      exp.innerHTML='⚠️ 未作答。正确答案是 '+String.fromCharCode(65+item.a)+'。'+item.e;
+    }
+  });
+  const sc=document.getElementById('score');
+  sc.style.display='block';
+  let msg='',color='';
+  if(score>=9){msg='🏆 精通！';color='var(--green)';}
+  else if(score>=7){msg='👍 不错，再巩固细节';color='var(--accent)';}
+  else if(score>=5){msg='📖 及格，建议重读原理与代码';color='var(--orange)';}
+  else{msg='💪 别灰心，回去重读 1-5 节';color='var(--red)';}
+  sc.style.background='var(--surface2)';sc.style.border='2px solid '+color;sc.style.color=color;
+  sc.innerHTML=`得分：${score} / ${QUIZ.length}　${msg}`;
+  sc.scrollIntoView({behavior:'smooth',block:'center'});
+}
+renderQuiz();
+</script>
+</body>
+</html>

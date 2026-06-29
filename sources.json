@@ -23,6 +23,18 @@
       "target": "pages/DynaGuide/index.html",
       "title": "DynaGuide 仓库分析",
       "category": "wm"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/dp/_codebase_analysis/diffusion_policy_learn.html",
+      "target": "pages/dp/diffusion_policy_learn.html",
+      "title": "Diffusion Policy 学习课",
+      "category": "diff"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/dp/_codebase_analysis/dp_dit_flowmatching.html",
+      "target": "pages/dp/dp_dit_flowmatching.html",
+      "title": "DP·DiT·Flow Matching 三剑客",
+      "category": "diff"
     }
   ]
 }

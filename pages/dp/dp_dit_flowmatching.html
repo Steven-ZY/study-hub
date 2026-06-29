@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DP · DiT · Flow Matching 三剑客</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:40px 20px 20px}
+h1{font-size:2.1em;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:24px 0;border-bottom:1px solid var(--border)}
+.tab{padding:10px 16px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.88em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade 0.3s}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+h2{color:var(--accent);margin:28px 0 14px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:20px 0 10px}
+h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.8em;line-height:1.5;margin:10px 0}
+code{color:var(--green)}
+.path{color:var(--orange);font-family:monospace;font-size:0.86em}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.pink{background:rgba(244,114,182,0.08);border-left:3px solid var(--pink);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:0.86em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center;font-family:'Cambria Math',serif;font-size:1.05em;margin:12px 0;color:var(--text)}
+.hl{color:var(--green);font-weight:600}
+.hp{color:var(--pink);font-weight:600}
+ul,ol{margin:8px 0 8px 24px;color:var(--dim)}
+li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>DP · DiT · Flow Matching 三剑客</h1>
+<p class="sub">原理 + 公式 + 逐行代码 + 关系图谱 · 结合 dp / starVLA / openpi 仓库</p>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="map">0. 关系总览</div>
+<div class="tab" data-tab="ddpm">1. DDPM (DP 的底座)</div>
+<div class="tab" data-tab="dit">2. DiT</div>
+<div class="tab" data-tab="fm">3. Flow Matching</div>
+<div class="tab" data-tab="unify">4. 统一视角</div>
+<div class="tab" data-tab="evo">5. 衍生脉络</div>
+<div class="tab" data-tab="quiz">6. 自测</div>
+</div>
+
+
+<!-- Panel 0: Map -->
+<div class="panel active" id="panel-map">
+<div class="section">
+<h2>0.1 一句话区分三者</h2>
+<table>
+<tr><th>概念</th><th>它是什么层面</th><th>一句话</th></tr>
+<tr><td class="hp">DDPM / Diffusion</td><td>生成范式（怎么训、怎么采样）</td><td>把数据逐步加噪到高斯，再学一个网络一步步去噪还原</td></tr>
+<tr><td class="hp">Flow Matching</td><td>生成范式（DDPM 的"竞品/升级"）</td><td>不绕弯走加噪链，直接学"从噪声到数据的直线速度场"，更少步数</td></tr>
+<tr><td class="hp">DiT</td><td>网络架构（用什么网络去噪）</td><td>用 Transformer（而非 U-Net）当那个"去噪/速度预测网络"</td></tr>
+<tr><td class="hp">Diffusion Policy</td><td>应用（把上面用在机器人）</td><td>把"生成"对象从图片换成机器人动作序列，观测作条件</td></tr>
+</table>
+<div class="note"><b>关键认知</b>：DDPM 和 Flow Matching 是<b>同一层面</b>的两种"生成范式"（可互相替换）；DiT 是<b>正交</b>的一层——它是"去噪网络的架构选择"，既能配 DDPM 也能配 Flow Matching。Diffusion Policy 则是把整套东西<b>应用</b>到动作生成。</div>
+</div>
+
+<div class="section">
+<h2>0.2 三者的正交关系图</h2>
+<pre><code>          范式 (训练目标 + 采样算法)
+          ┌─────────────┬──────────────────┐
+          │   DDPM      │  Flow Matching   │
+          │ (预测噪声ε) │  (预测速度场v)    │
+══════════╪═════════════╪══════════════════╡
+架 U-Net  │ DDPM+UNet   │  FM+UNet         │
+构 ───────┼─────────────┼──────────────────┤
+   Trans- │ DiT(原始)   │  FM+DiT          │
+   former │ DDPM+Trans  │ ★主流VLA动作头   │
+══════════╧═════════════╧══════════════════╛
+
+应用到机器人动作生成 = Diffusion Policy 家族:
+  • DP-CNN     = DDPM + UNet1D     (dp 仓库主力)
+  • DP-Transf. = DDPM + Transformer(dp 仓库变体)
+  • π0/GR00T   = Flow Matching + DiT (starVLA/openpi)</code></pre>
+<p>横轴=范式（DDPM vs FM），纵轴=架构（UNet vs Transformer/DiT）。<span class="hl">2×2 任意组合都成立</span>，这正是为什么这三个概念可以独立学、再自由拼装。</p>
+</div>
+
+<div class="section">
+<h2>0.3 时间线与传承</h2>
+<pre><code>2020 DDPM ──────────────► 扩散生成范式确立 (预测噪声)
+  │
+  ├─2021 DDIM ──────────► 确定性快速采样 (100步→10步)
+  │
+  ├─2022 DiT ───────────► 把 U-Net 换成 Transformer
+  │                       (Peebles & Xie, 可扩展性更好)
+  │
+  ├─2023 DiffusionPolicy► 扩散用于机器人动作 (DDPM+UNet/Transf)
+  │
+  └─2022~23 FlowMatching► Lipman等; Rectified Flow (刘强等)
+        │                 直线路径, 更少采样步
+        │
+        └─2024~ π0/GR00T► Flow Matching + DiT 做动作专家
+                          (当前 VLA 动作头主流)</code></pre>
+</div>
+
+<div class="section">
+<h2>0.4 本课学习路线</h2>
+<ol>
+<li><b>Tab 1 DDPM</b>：先吃透 DP 用的底座（前向加噪、反向去噪、ε 预测），结合 dp 仓库代码</li>
+<li><b>Tab 2 DiT</b>：理解"去噪网络"为什么/怎么换成 Transformer，看 AdaLN 条件注入</li>
+<li><b>Tab 3 Flow Matching</b>：理解它和 DDPM 的本质区别，看 starVLA/openpi 代码</li>
+<li><b>Tab 4 统一视角</b>：用 SDE/ODE 把三者串起来</li>
+<li><b>Tab 5 衍生</b>：从这三者长出的方法树</li>
+</ol>
+</div>
+</div>
+
+
+<!-- Panel 1: DDPM -->
+<div class="panel" id="panel-ddpm">
+<div class="section">
+<h2>1.1 DDPM 原理：两个方向</h2>
+<h4>前向过程 q（加噪，固定不学）</h4>
+<p>给干净数据 x₀ 逐步加高斯噪声，T 步后变纯噪声。单步：</p>
+<div class="eq">q(xₜ | xₜ₋₁) = N(xₜ; √(1−βₜ)·xₜ₋₁, βₜI)</div>
+<p>关键技巧——任意步可一次性算出（reparameterization）：</p>
+<div class="eq">xₜ = √(ᾱₜ)·x₀ + √(1−ᾱₜ)·ε,&nbsp;&nbsp; ε~N(0,I),&nbsp; ᾱₜ=∏(1−βᵢ)</div>
+<h4>反向过程 p_θ（去噪，要学的）</h4>
+<div class="eq">p_θ(xₜ₋₁ | xₜ) = N(xₜ₋₁; μ_θ(xₜ,t), Σ_θ)</div>
+<p>DDPM 的洞察：与其学均值 μ，不如<span class="hl">学预测噪声 ε</span>。简化后的训练目标：</p>
+<div class="eq">L = 𝔼<sub>x₀,ε,t</sub> ‖ ε − ε_θ(√ᾱₜ·x₀ + √(1−ᾱₜ)·ε, t) ‖²</div>
+<div class="key"><b>为什么预测 ε 这么神？</b> 它等价于学数据分布的<b>分数函数</b>（score）∇ₓ log p(x) ≈ −ε_θ/√(1−ᾱₜ)。所以 DDPM 本质是 score-based 生成。这也是 Diffusion Policy "学动作分布梯度" 说法的由来。</div>
+</div>
+
+<div class="section">
+<h2>1.2 采样：DDPM vs DDIM</h2>
+<table>
+<tr><th></th><th>DDPM 采样</th><th>DDIM 采样</th></tr>
+<tr><td>性质</td><td>随机（每步加噪声）</td><td>确定性（无随机项）</td></tr>
+<tr><td>步数</td><td>~100-1000</td><td>10-50（可跳步）</td></tr>
+<tr><td>DP 用途</td><td>训练时 K=100</td><td>推理时 10-16 步（实时）</td></tr>
+</table>
+<div class="eq">DDIM: xₜ₋₁ = √ᾱₜ₋₁·(x̂₀) + √(1−ᾱₜ₋₁)·ε_θ(xₜ,t)</div>
+<p>其中 x̂₀ = (xₜ − √(1−ᾱₜ)·ε_θ)/√ᾱₜ 是当前估计的干净数据。DDIM 可看作 ODE 离散化（见 Tab 4）。</p>
+</div>
+
+<div class="section">
+<h2>1.3 代码精读①：前向加噪 + 训练 loss</h2>
+<p><span class="path">dp: diffusion_policy/policy/diffusion_unet_lowdim_policy.py</span></p>
+<pre><code># ═══ 采样随机时间步 ═══
+timesteps = torch.randint(0, 100, (bsz,)).long()   # t ~ U(0,100)
+noise = torch.randn(trajectory.shape)              # ε ~ N(0,I)
+
+# ═══ 前向加噪 (一步到位, 对应公式 xₜ=√ᾱ·x₀+√(1-ᾱ)·ε) ═══
+noisy_trajectory = self.noise_scheduler.add_noise(
+    trajectory, noise, timesteps)
+#   diffusers 内部: √ᾱₜ·trajectory + √(1-ᾱₜ)·noise
+
+# ═══ 预测噪声 ═══
+pred = self.model(noisy_trajectory, timesteps, global_cond=obs_cond)
+
+# ═══ 目标 = 噪声本身 (epsilon prediction) ═══
+target = noise   # prediction_type == 'epsilon'
+loss = F.mse_loss(pred, target)   # 就是公式里的 ‖ε - ε_θ‖²</code></pre>
+<div class="note">看，论文公式 L=‖ε−ε_θ‖² 在代码里就是 <code>F.mse_loss(pred, noise)</code> 一行。<code>add_noise</code> 帮你做了 √ᾱ 那套加权。</div>
+</div>
+
+<div class="section">
+<h2>1.4 代码精读②：反向去噪采样</h2>
+<p><span class="path">dp: diffusion_policy/policy/diffusion_unet_lowdim_policy.py · conditional_sample</span></p>
+<pre><code>trajectory = torch.randn(size=shape)          # xₜ = 纯噪声起点
+scheduler.set_timesteps(self.num_inference_steps)  # 推理 10-16 步
+
+for t in scheduler.timesteps:                 # t 从大到小
+    model_output = model(trajectory, t, global_cond=obs_cond)  # 预测 ε
+    trajectory = scheduler.step(              # xₜ → xₜ₋₁
+        model_output, t, trajectory).prev_sample
+# 循环结束 → trajectory 是干净动作 x₀</code></pre>
+<p><code>scheduler.step()</code> 内部就是 DDPM/DDIM 的那条反向公式。换 scheduler（DDPMScheduler→DDIMScheduler）就切换采样方式，<b>训练代码完全不用动</b>——这是范式与实现解耦的好例子。</p>
+</div>
+
+<div class="section">
+<h2>1.5 DP 如何把"生成图片"变成"生成动作"</h2>
+<table>
+<tr><th></th><th>图像扩散 (DDPM 原版)</th><th>Diffusion Policy</th></tr>
+<tr><td>x₀ (生成对象)</td><td>图片 [B,3,H,W]</td><td>动作序列 [B,Tp,Da]</td></tr>
+<tr><td>条件</td><td>类别/文本</td><td>视觉观测 obs (FiLM/cross-attn)</td></tr>
+<tr><td>网络</td><td>2D U-Net</td><td>1D U-Net (时间卷积) 或 Transformer</td></tr>
+<tr><td>采样输出后</td><td>直接是图</td><td>取中间 Ta 步执行 (receding horizon)</td></tr>
+</table>
+<div class="key">本质完全一样，只是把"空间维度的图片"换成"时间维度的动作序列"，把"文本条件"换成"观测条件"。DP 的全部创新都在<b>怎么用</b>，而非改动 DDPM 本身。</div>
+</div>
+</div>
+
+
+<!-- Panel 2: DiT -->
+<div class="panel" id="panel-dit">
+<div class="section">
+<h2>2.1 DiT 是什么 & 为什么</h2>
+<p><b>DiT (Diffusion Transformer, Peebles & Xie 2022)</b>：把扩散模型里那个"去噪网络"从 U-Net 换成 Transformer。</p>
+<div class="note"><b>动机</b>：U-Net 是卷积结构，扩展性受限；Transformer 随参数/数据扩展（scaling law）表现更好。DiT 证明纯 Transformer 也能做顶级图像生成，并随计算量平滑提升。</div>
+<p>核心问题：Transformer 怎么吃"扩散步 t"和"条件 c"？答案是 <span class="hl">AdaLN（Adaptive Layer Norm）</span>——把 (t, c) 编码成每层 LayerNorm 的 scale/shift。</p>
+</div>
+
+<div class="section">
+<h2>2.2 AdaLN 公式</h2>
+<p>普通 LayerNorm：<code>LN(x) = γ·norm(x) + β</code>，γ/β 是固定可学参数。</p>
+<p>AdaLN：让 γ/β <b>由条件动态生成</b>：</p>
+<div class="eq">scale, shift = MLP(emb(t) + emb(c))<br>AdaLN(x) = (1 + scale)·norm(x) + shift</div>
+<p>这样每个扩散步、每个条件，都会调制出不同的归一化行为。是把条件注入 Transformer 的标准做法，等价于 CNN 里的 FiLM（见 DP 学习课）。</p>
+</div>
+
+<div class="section">
+<h2>2.3 代码精读①：DP 仓库的 Transformer 去噪器</h2>
+<p><span class="path">dp: diffusion_policy/model/diffusion/transformer_for_diffusion.py</span></p>
+<p>DP 的 Transformer 变体用 <b>encoder-decoder</b> 结构（条件做 memory，动作做 target）：</p>
+<pre><code>def forward(self, sample, timestep, cond=None):
+    # sample: [B,Tp,Da] 噪声动作; timestep: 扩散步; cond: [B,To,cond_dim] 观测
+    time_emb = self.time_emb(timesteps).unsqueeze(1)  # [B,1,n_emb] 扩散步嵌入
+
+    input_emb = self.input_emb(sample)                # 动作 → token
+
+    # ═══ encoder: 把 (时间步 + 观测) 编码成 memory ═══
+    cond_embeddings = time_emb
+    if self.obs_as_cond:
+        cond_obs_emb = self.cond_obs_emb(cond)        # 观测 → token
+        cond_embeddings = torch.cat([time_emb, cond_obs_emb], dim=1)
+    x = cond_embeddings + self.cond_pos_emb
+    memory = self.encoder(x)                          # [B, T_cond, n_emb]
+
+    # ═══ decoder: 动作 token 交叉注意 memory ═══
+    x = input_emb + self.pos_emb
+    x = self.decoder(
+        tgt=x, memory=memory,
+        tgt_mask=self.mask,          # 因果掩码: 动作只看自己和之前
+        memory_mask=self.memory_mask
+    )
+    x = self.head(x)                 # → [B,Tp,Da] 预测噪声
+    return x</code></pre>
+<div class="note">这里条件通过<b>交叉注意力</b>注入（decoder 的 memory），不是 AdaLN。DP-Transformer 是 minGPT 风格。下面看 starVLA 里更"标准 DiT"的 AdaLN 写法。</div>
+</div>
+
+<div class="section">
+<h2>2.4 代码精读②：starVLA 的标准 DiT（AdaLN 版）</h2>
+<p><span class="path">starVLA: starVLA/model/modules/action_model/flow_matching_head/cross_attention_dit.py</span></p>
+<pre><code>class AdaLayerNorm(nn.Module):
+    def forward(self, x, temb):
+        temb = self.linear(self.silu(temb))      # 条件 → 2×dim
+        scale, shift = temb.chunk(2, dim=1)       # 拆成 scale / shift
+        x = self.norm(x) * (1 + scale[:, None]) + shift[:, None]  # AdaLN!
+        return x
+
+class DiT(...):
+    def forward(self, hidden_states, encoder_hidden_states, timestep, ...):
+        temb = self.timestep_encoder(timestep)    # 扩散步 → 嵌入
+
+        for idx, block in enumerate(self.transformer_blocks):
+            if idx % 2 == 1 and self.config.interleave_self_attention:
+                # 奇数层: self-attn (动作 token 互相看)
+                hidden_states = block(hidden_states, encoder_hidden_states=None, temb=temb)
+            else:
+                # 偶数层: cross-attn (动作 token 看 VLM/观测特征)
+                hidden_states = block(hidden_states,
+                    encoder_hidden_states=encoder_hidden_states, temb=temb)
+
+        # 输出层也用 AdaLN 调制
+        shift, scale = self.proj_out_1(F.silu(temb)).chunk(2, dim=1)
+        hidden_states = self.norm_out(hidden_states)*(1+scale[:,None])+shift[:,None]
+        return self.proj_out_2(hidden_states)</code></pre>
+<div class="key"><b>两种条件注入并存</b>：扩散步 t 走 <b>AdaLN</b>（每层归一化调制），观测/VLM 特征走 <b>cross-attention</b>（每隔一层）。这是当前 VLA 动作头（π0/GR00T）的标准结构。</div>
+</div>
+
+<div class="section">
+<h2>2.5 DiT vs U-Net 对比</h2>
+<table>
+<tr><th></th><th>U-Net (DP-CNN)</th><th>DiT (Transformer)</th></tr>
+<tr><td>骨架</td><td>卷积下采样+上采样+skip</td><td>堆叠 Transformer block</td></tr>
+<tr><td>条件注入</td><td>FiLM (scale/bias 调制卷积)</td><td>AdaLN (调制归一化) + cross-attn</td></tr>
+<tr><td>扩展性</td><td>受限</td><td>随参数/数据平滑提升</td></tr>
+<tr><td>归纳偏置</td><td>局部性强(适合低频)</td><td>全局注意(适合高频/长程)</td></tr>
+<tr><td>超参敏感</td><td>低(开箱即用)</td><td>高(dropout/wd 需调)</td></tr>
+</table>
+<p>注意 FiLM 和 AdaLN 是<b>同一思想</b>的两种实现：用条件生成 scale/shift 去调制特征，只是一个调卷积输出、一个调 LayerNorm。</p>
+</div>
+</div>
+
+
+<!-- Panel 3: Flow Matching -->
+<div class="panel" id="panel-fm">
+<div class="section">
+<h2>3.1 Flow Matching 的核心思想</h2>
+<p>DDPM 走的是一条"加噪马尔可夫链"，弯弯曲曲。Flow Matching (FM) 问：能不能让"噪声→数据"走<b>直线</b>？</p>
+<div class="key"><b>直觉</b>：在噪声分布和数据分布之间定义一条<b>概率路径</b>，学一个<b>速度场 v(x,t)</b>，告诉每个点"此刻该往哪个方向走、走多快"。推理时就是解一个 ODE：从噪声出发，沿速度场积分到数据。</div>
+</div>
+
+<div class="section">
+<h2>3.2 公式：条件 FM / Rectified Flow</h2>
+<p>最常用的是<b>线性插值路径</b>（Rectified Flow）。给数据 x₁ 和噪声 x₀~N(0,I)：</p>
+<div class="eq">xₜ = (1−t)·x₀ + t·x₁,&nbsp;&nbsp; t∈[0,1]</div>
+<p>这条直线的速度（对 t 求导）是常数：</p>
+<div class="eq">真实速度 u = dxₜ/dt = x₁ − x₀</div>
+<p>训练目标——让网络预测这个速度：</p>
+<div class="eq">L = 𝔼<sub>t,x₀,x₁</sub> ‖ v_θ(xₜ, t, c) − (x₁ − x₀) ‖²</div>
+<p>推理——从噪声 x₀ 出发解 ODE（欧拉法，几步即可）：</p>
+<div class="eq">x ← x + Δt · v_θ(x, t, c)</div>
+<div class="note"><b>对比 DDPM</b>：DDPM 预测<b>噪声 ε</b>、采样要几十上百步；FM 预测<b>速度 v</b>、路径是直线、采样 4-10 步就够。这就是 π0/GR00T 选 FM 的原因——动作生成要实时。</div>
+</div>
+
+<div class="section">
+<h2>3.3 DDPM vs Flow Matching 对照</h2>
+<table>
+<tr><th>维度</th><th>DDPM (DP 用)</th><th>Flow Matching (π0/GR00T 用)</th></tr>
+<tr><td>路径</td><td>加噪马尔可夫链(曲)</td><td>线性插值(直)</td></tr>
+<tr><td>预测目标</td><td>噪声 ε</td><td>速度场 v = x₁−x₀</td></tr>
+<tr><td>训练 loss</td><td>‖ε − ε_θ‖²</td><td>‖v − v_θ‖²</td></tr>
+<tr><td>采样</td><td>反向链/DDIM (10-100步)</td><td>ODE 欧拉 (4-10步)</td></tr>
+<tr><td>时间方向</td><td>t=0 数据, t=T 噪声</td><td>因实现而异(见下方坑)</td></tr>
+</table>
+<div class="warn"><b>易混坑：t 的方向</b>。starVLA 里 t=1 是干净动作；openpi 里 t=1 是噪声（代码注释明确吐槽"和论文相反，抱歉"）。读代码时务必先确认插值方向，否则推理积分方向会反。</div>
+</div>
+
+<div class="section">
+<h2>3.4 代码精读①：starVLA 的 FM 训练</h2>
+<p><span class="path">starVLA: starVLA/model/modules/action_model/GR00T_ActionHeader.py · forward</span></p>
+<pre><code>def forward(self, vl_embs, actions, state=None, ...):
+    # ═══ 采样噪声 + 时间步 ═══
+    noise = torch.randn(actions.shape)            # x₀ ~ N(0,I)
+    t = self.sample_time(...)                     # t ~ Beta(1.5,1.0), 偏向小t
+    t = t[:, None, None]
+
+    # ═══ 线性插值构造 noisy action (FM 路径) ═══
+    noisy_trajectory = (1 - t) * noise + t * actions   # xₜ=(1-t)x₀+t·x₁
+    velocity = actions - noise                          # 真实速度 v=x₁-x₀
+
+    # ═══ DiT 预测速度 ═══
+    t_discretized = (t[:,0,0] * self.num_timestep_buckets).long()
+    action_features = self.action_encoder(noisy_trajectory, t_discretized)
+    ... # 拼接 state / future tokens
+    model_output = self.model(                    # 这个 model 就是 DiT!
+        hidden_states=sa_embs,
+        encoder_hidden_states=vl_embs,            # 观测/VLM 特征做 cross-attn
+        timestep=t_discretized)
+    pred = self.action_decoder(model_output)
+
+    # ═══ FM loss: ‖v - v_θ‖² ═══
+    loss = ((pred[:, -actions.shape[1]:] - velocity) ** 2).mean()
+    return loss</code></pre>
+<div class="key">对照公式：<code>noisy_trajectory = (1-t)*noise + t*actions</code> 就是 xₜ；<code>velocity = actions - noise</code> 就是真实速度 u；loss 就是 ‖v−v_θ‖²。而那个 <code>self.model</code> 正是 <b>Tab 2 讲的 DiT</b>——FM 和 DiT 在这里合体。</div>
+</div>
+
+<div class="section">
+<h2>3.5 代码精读②：starVLA 的 FM 推理（ODE 欧拉）</h2>
+<p><span class="path">starVLA: GR00T_ActionHeader.py · predict_action</span></p>
+<pre><code>actions = torch.randn(B, action_horizon, action_dim)  # x₀ 噪声起点
+num_steps = self.num_inference_timesteps              # 如 4 步
+dt = 1.0 / num_steps
+
+for t in range(num_steps):
+    t_cont = t / num_steps                            # 0, 0.25, 0.5, 0.75
+    t_disc = int(t_cont * self.num_timestep_buckets)
+    action_features = self.action_encoder(actions, t_disc)
+    ...
+    model_output = self.model(hidden_states=sa_embs,
+        encoder_hidden_states=vl_embs, timestep=t_disc)
+    pred_velocity = self.action_decoder(model_output)[:, -action_horizon:]
+    actions = actions + dt * pred_velocity            # 欧拉积分! x += Δt·v
+return actions                                        # 干净动作</code></pre>
+<p>对照公式 <code>x ← x + Δt·v</code>，4 步就从噪声积分到动作。比 DDPM 的几十步快一个量级。</p>
+</div>
+
+<div class="section">
+<h2>3.6 openpi 里的 FM（注意 t 方向相反）</h2>
+<p><span class="path">openpi: src/openpi/models/pi0.py · compute_loss / sample_actions</span></p>
+<pre><code># 训练 (注意 t=1 是噪声, 与 starVLA 相反!)
+time = beta(1.5, 1) * 0.999 + 0.001
+x_t = time * noise + (1 - time) * actions   # t=1→noise, t=0→action
+u_t = noise - actions                        # 速度方向也跟着反
+v_t = model(x_t, time, ...)
+loss = mean((v_t - u_t)²)
+
+# 推理: dt 为负, 从 t=1 积分到 t=0
+dt = -1.0 / num_steps
+x = noise
+for step: x = x + dt * v_t   # 反方向积分</code></pre>
+<div class="warn">同样是 Flow Matching，starVLA 和 openpi 的 t 方向、速度符号都相反，但数学等价。<b>读任何 FM 代码先三件事</b>：①插值公式看 t=1 是数据还是噪声 ②速度定义 ③推理 dt 正负。</div>
+</div>
+</div>
+
+
+<!-- Panel 4: Unify -->
+<div class="panel" id="panel-unify">
+<div class="section">
+<h2>4.1 统一视角：都是 SDE/ODE 的离散化</h2>
+<p>DDPM 和 Flow Matching 看似不同，其实是<b>同一个连续过程的两种刻画</b>。生成可以统一写成一条微分方程，从噪声演化到数据：</p>
+<div class="eq">dx = [漂移项 f(x,t)] dt + [扩散项 g(t)] dW</div>
+<ul>
+<li><b>DDPM</b> = 这个 <b>SDE（随机微分方程）</b> 的特定离散化，含随机项 dW，预测噪声 ε（≈ 分数 ∇log p）</li>
+<li><b>DDIM</b> = 去掉随机项后对应的 <b>概率流 ODE</b>，所以确定性、可跳步</li>
+<li><b>Flow Matching</b> = 直接学这条 <b>ODE 的速度场 v</b>，并选最简单的直线路径</li>
+</ul>
+<div class="key">所以 DDIM（DDPM 的快速采样）和 Flow Matching 在"解 ODE"这点上殊途同归。FM 的优势是<b>训练时</b>就让路径变直，使 ODE 更好解（更少步数）。</div>
+</div>
+
+<div class="section">
+<h2>4.2 score（分数）、噪声 ε、速度 v 的换算</h2>
+<table>
+<tr><th>量</th><th>含义</th><th>谁在用</th></tr>
+<tr><td>分数 ∇ₓlog p(x)</td><td>对数概率密度的梯度，指向高概率区</td><td>Score-based 理论</td></tr>
+<tr><td>噪声 ε</td><td>加进去的高斯噪声</td><td>DDPM / DP</td></tr>
+<tr><td>速度 v</td><td>概率路径的瞬时速度</td><td>Flow Matching / π0</td></tr>
+</table>
+<p>三者可互相换算（在给定路径下）。例如 DDPM 的 ε_θ 与分数差一个 −1/√(1−ᾱₜ) 因子；线性路径下速度 v 与 ε、x₀ 也有线性关系。<b>它们是同一信息的不同参数化</b>。</p>
+</div>
+
+<div class="section">
+<h2>4.3 把四个概念拼回去：每个方法是怎么组合的</h2>
+<table>
+<tr><th>方法</th><th>范式</th><th>预测量</th><th>架构</th><th>采样步</th><th>仓库</th></tr>
+<tr><td>DP-CNN</td><td>DDPM</td><td>ε</td><td>UNet1D + FiLM</td><td>DDIM 10-16</td><td class="path">dp</td></tr>
+<tr><td>DP-Transformer</td><td>DDPM</td><td>ε</td><td>Transformer + cross-attn</td><td>DDIM 10-16</td><td class="path">dp</td></tr>
+<tr><td>GR00T 动作头</td><td>Flow Matching</td><td>v</td><td>DiT + AdaLN + cross-attn</td><td>ODE 4</td><td class="path">starVLA</td></tr>
+<tr><td>π0</td><td>Flow Matching</td><td>v</td><td>双 Gemma (类DiT)</td><td>ODE 10</td><td class="path">openpi</td></tr>
+</table>
+<p>读到任何一个动作生成方法，都可以用这张表的五栏去拆解它：<b>范式 / 预测量 / 架构 / 采样 / 条件注入</b>。</p>
+</div>
+
+<div class="section">
+<h2>4.4 条件注入方式横向对比</h2>
+<table>
+<tr><th>方式</th><th>怎么做</th><th>用在</th></tr>
+<tr><td>FiLM</td><td>条件→scale/bias 调制卷积输出</td><td>DP-CNN</td></tr>
+<tr><td>AdaLN</td><td>条件→scale/shift 调制 LayerNorm</td><td>DiT / GR00T (扩散步t)</td></tr>
+<tr><td>Cross-Attention</td><td>动作 token 查询观测特征</td><td>DP-Transformer, GR00T (观测)</td></tr>
+<tr><td>Token 拼接</td><td>条件作为序列 token 一起进 Transformer</td><td>π0 (prefix-suffix)</td></tr>
+</table>
+<p>FiLM 与 AdaLN 本质相同（生成 scale/shift 调制特征），区别只是调制对象。扩散步 t 常走 AdaLN/FiLM，复杂观测常走 cross-attn 或 token 拼接。</p>
+</div>
+</div>
+
+<!-- Panel 5: Evolution -->
+<div class="panel" id="panel-evo">
+<div class="section">
+<h2>5.1 方法树：从三个底座长出的家族</h2>
+<pre><code>【范式层】
+DDPM(2020) ──┬── DDIM(2021) 快速采样
+             ├── Score SDE(2021) 统一理论
+             └── Flow Matching / Rectified Flow(2022-23) 直线路径
+                      │
+                      └── Consistency Models / 蒸馏 → 1步生成
+
+【架构层】
+U-Net ──► DiT(2022) ──┬── PixArt, SD3 (图像)
+                       ├── 视频 DiT (Sora类)
+                       └── 动作 DiT (GR00T, π0 动作头)
+
+【机器人应用层】
+Diffusion Policy(2023, DDPM+UNet/Transf)
+   │
+   ├── 3D Diffusion Policy (点云观测)
+   ├── Diffusion Policy + Flow Matching (换范式提速)
+   ├── π0 / π0.5 (Flow Matching + 双Gemma, VLA)
+   ├── GR00T N1.x (Flow Matching + DiT 动作专家)
+   └── RDT, MDT 等 (扩散/DiT 大动作模型)</code></pre>
+</div>
+
+<div class="section">
+<h2>5.2 关键衍生及其动机</h2>
+<table>
+<tr><th>衍生方法</th><th>在哪个底座上改</th><th>解决什么问题</th></tr>
+<tr><td>DDIM</td><td>DDPM 采样</td><td>100步→10步，能实时</td></tr>
+<tr><td>Flow Matching</td><td>替代 DDPM 范式</td><td>直线路径，更少采样步、训练更稳</td></tr>
+<tr><td>Consistency Model</td><td>蒸馏扩散/FM</td><td>1-2 步生成，极致提速</td></tr>
+<tr><td>DiT</td><td>替代 U-Net 架构</td><td>可扩展性，适配大模型</td></tr>
+<tr><td>Diffusion Policy</td><td>DDPM 应用到动作</td><td>多模态动作、训练稳定</td></tr>
+<tr><td>π0 / GR00T</td><td>FM+DiT 应用到 VLA</td><td>实时动作生成 + 接 VLM 语义</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>5.3 学习建议：怎么读一个新动作生成论文</h2>
+<ol>
+<li><b>先定范式</b>：它用 DDPM 还是 Flow Matching？看训练 loss 预测 ε 还是 v。</li>
+<li><b>再看架构</b>：去噪网络是 U-Net 还是 DiT/Transformer？</li>
+<li><b>查条件注入</b>：观测/语言怎么进网络（FiLM/AdaLN/cross-attn/token）？</li>
+<li><b>看采样</b>：推理几步？DDIM 还是 ODE 欧拉？</li>
+<li><b>找创新点</b>：多数论文只动其中 1-2 项，其余沿用经典。</li>
+</ol>
+<div class="key">掌握 DDPM + DiT + Flow Matching 这三块，几乎所有"扩散类机器人策略"论文都能秒拆。它们就是这个领域的"乐高基础件"。</div>
+</div>
+</div>
+
+
+<!-- Panel 6: Quiz -->
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>6. 自测：12 题检验你是否真懂三者关系</h2>
+<p>选完点提交，即时判分 + 解析。</p>
+<div id="quiz"></div>
+<div id="score" style="margin-top:20px;padding:16px;border-radius:8px;text-align:center;font-size:1.2em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:16px;padding:10px 24px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95em">提交答案</button>
+</div>
+</div>
+
+</div><!-- container -->
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');
+  window.scrollTo(0,0);};});
+
+const QUIZ=[
+{q:"DDPM、Flow Matching、DiT 三者的层面关系，下列哪个正确？",
+o:["三者是同一层面、互斥","DDPM和FM是生成范式(可互换)，DiT是网络架构(正交)","DiT 是 DDPM 的一种","FM 必须配 DiT"],
+a:1,e:"DDPM 与 Flow Matching 是同层面的两种生成范式；DiT 是去噪网络的架构选择，与范式正交，可任意组合。"},
+{q:"DDPM 训练时网络预测的是什么？",
+o:["干净数据 x₀","加入的噪声 ε","速度场 v","类别标签"],
+a:1,e:"DDPM 经典做法是预测噪声 ε，loss = ‖ε − ε_θ‖²，等价于学分数函数。"},
+{q:"Flow Matching 训练时网络预测的是什么？",
+o:["噪声 ε","速度场 v = x₁ − x₀","配分函数 Z","注意力权重"],
+a:1,e:"FM(线性路径)预测速度场 v=x₁−x₀，loss=‖v−v_θ‖²。"},
+{q:"为什么 π0/GR00T 选 Flow Matching 而非 DDPM？",
+o:["FM 精度一定更高","FM 路径更直、采样步数更少，适合实时动作生成","DDPM 不能做动作","FM 不需要网络"],
+a:1,e:"FM 线性路径使 ODE 好解，4-10 步即可，满足机器人实时控制；DDPM 通常需更多步。"},
+{q:"DiT 相比 U-Net 的主要动机是？",
+o:["参数更少","可扩展性更好(随数据/参数平滑提升)","不需要条件","只能做图像"],
+a:1,e:"DiT 用 Transformer 替代 U-Net，遵循 scaling law，扩展性更好。"},
+{q:"AdaLN 和 FiLM 的关系是？",
+o:["完全无关","本质相同：用条件生成 scale/shift 调制特征，只是调制对象不同","FiLM 是 AdaLN 的反向","二者不能用于扩散"],
+a:1,e:"FiLM 调制卷积输出、AdaLN 调制 LayerNorm，思想一致——条件→scale/shift→调制特征。"},
+{q:"DP-CNN 用的是哪种组合？",
+o:["FM + DiT","DDPM + UNet1D + FiLM","FM + UNet","DDPM + 双Gemma"],
+a:1,e:"Diffusion Policy 的 CNN 变体 = DDPM 范式 + 1D U-Net + FiLM 条件注入。"},
+{q:"DDIM 与 Flow Matching 在采样上的共同点？",
+o:["都加随机噪声","都可视为解概率流 ODE(确定性)","都需要100步","都预测 ε"],
+a:1,e:"DDIM 去掉随机项对应概率流 ODE；FM 直接学 ODE 速度场。二者都在'解 ODE'这点上相通。"},
+{q:"starVLA 的 GR00T 动作头中，扩散步 t 和观测特征分别怎么注入 DiT？",
+o:["都用 cross-attn","t 用 AdaLN，观测用 cross-attention","都用 AdaLN","都用 token 拼接"],
+a:1,e:"扩散步 t 走 AdaLN 调制归一化；观测/VLM 特征走 cross-attention(每隔一层)。"},
+{q:"读 Flow Matching 代码时最该先确认什么？",
+o:["batch size","插值方向(t=1是数据还是噪声)、速度符号、推理dt正负","学习率","GPU型号"],
+a:1,e:"starVLA(t=1是动作)与 openpi(t=1是噪声)方向相反但等价，不先确认会把积分方向搞反。"},
+{q:"下列哪个组合在理论上不成立？",
+o:["DDPM + Transformer","Flow Matching + U-Net","DiT + Flow Matching","以上都成立"],
+a:3,e:"范式(DDPM/FM)与架构(UNet/DiT)正交，2×2 任意组合都成立。"},
+{q:"Diffusion Policy 把 DDPM 从图像生成迁移到动作，主要改了什么？",
+o:["重写了 DDPM 数学","把生成对象换成动作序列、条件换成观测，范式本身不改","发明了新的采样器","去掉了去噪网络"],
+a:1,e:"DP 的创新在'怎么用'：x₀ 从图片变动作序列、条件变观测、加 receding horizon，DDPM 本身没改。"}
+];
+
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{
+  const d=document.createElement('div');
+  d.style.cssText='margin:18px 0;padding:16px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';
+  let h=`<h4 style="color:var(--text);margin-bottom:10px">Q${i+1}. ${it.q}</h4>`;
+  it.o.forEach((o,j)=>{h+=`<label style="display:block;padding:8px 12px;margin:5px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-${i}-${j}"><input type="radio" name="q${i}" value="${j}" style="margin-right:8px">${o}</label>`;});
+  h+=`<div id="exp-${i}" style="display:none;margin-top:8px;padding:10px;border-radius:6px;font-size:0.88em"></div>`;
+  d.innerHTML=h;c.appendChild(d);});}
+
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{
+  const sel=document.querySelector(`input[name="q${i}"]:checked`);const e=document.getElementById('exp-'+i);e.style.display='block';
+  it.o.forEach((_,j)=>{const l=document.getElementById(`opt-${i}-${j}`);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});
+  document.getElementById(`opt-${i}-${it.a}`).style.borderColor='var(--green)';
+  document.getElementById(`opt-${i}-${it.a}`).style.background='rgba(52,211,153,0.12)';
+  if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确！'+it.e;}
+    else{document.getElementById(`opt-${i}-${v}`).style.borderColor='var(--red)';document.getElementById(`opt-${i}-${v}`).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}
+  else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});
+  const sc=document.getElementById('score');sc.style.display='block';let m='',c='';
+  if(s>=11){m='🏆 三剑客融会贯通！';c='var(--green)';}else if(s>=8){m='👍 框架清晰，细节再抠';c='var(--accent)';}
+  else if(s>=6){m='📖 及格，建议重读 Tab 0/4';c='var(--orange)';}else{m='💪 回去重读关系总览与统一视角';c='var(--red)';}
+  sc.style.background='var(--surface2)';sc.style.border='2px solid '+c;sc.style.color=c;sc.innerHTML=`得分：${s} / ${QUIZ.length}　${m}`;
+  sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
+</script>
+</body>
+</html>
