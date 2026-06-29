@@ -210,6 +210,61 @@ for t in scheduler.timesteps:                 # t 从大到小
 </div>
 
 <div class="section">
+<h2>2.1b 重要澄清：DiT + Flow Matching 为什么不重复？</h2>
+<div class="warn"><b>常见误解</b>："你说 DDPM 和 FM 是同一层面、二选一；又说 DiT 来自配 DDPM 的论文。那 DiT 不就自带 DDPM 了吗？再叠一个 FM 岂不是用了两套范式、重复了？"</div>
+<p>误解的根源在一句话：<span class="hp">DiT ≠ "用了 DDPM"</span>。DiT <b>只是一个网络结构</b>（Transformer 骨架 + AdaLN 条件注入），它本身<b>不含任何加噪/去噪逻辑，也不含任何范式</b>。DiT 原论文恰好用 DDPM 来训练它，但那只是作者当时的选择，不是 DiT 的一部分。</p>
+
+<h4>关键：网络 ≠ 范式，是两层独立的东西</h4>
+<p>把一个去噪/预测网络的接口抽象出来，它长这样：</p>
+<div class="eq">输入 (带噪样本 xₜ, 时间步 t, 条件 c) &nbsp;→&nbsp; 输出 一个与 x 同形状的张量</div>
+<p><b>网络不知道、也不关心</b>这个输出张量"是什么含义"。含义完全由<b>外面的训练 loss</b> 赋予：</p>
+<table>
+<tr><th>外面用的 loss</th><th>输出被训练成</th><th>这就是</th></tr>
+<tr><td>‖输出 − ε‖²</td><td>噪声 ε</td><td>DDPM 范式</td></tr>
+<tr><td>‖输出 − (x₁−x₀)‖²</td><td>速度 v</td><td>Flow Matching 范式</td></tr>
+</table>
+<div class="key">同一个 DiT、同样的前向计算，输出张量的物理含义<b>由 loss 决定</b>，网络结构里没有任何一行代码规定"我预测 ε 还是 v"。</div>
+
+<h4>用代码看最清楚</h4>
+<p>看 starVLA 的 DiT.forward（Tab 2.4 的代码）——它只是：编码时间步 → 过 N 层 Transformer → 投影输出。<b>全程没有"加噪/去噪/ε/速度"任何字样</b>，就是个"吃 (xₜ,t,c) 吐一个张量"的纯函数：</p>
+<pre><code>class DiT(...):
+    def forward(self, hidden_states, encoder_hidden_states, timestep):
+        temb = self.timestep_encoder(timestep)
+        for block in self.transformer_blocks:
+            hidden_states = block(hidden_states, ..., temb=temb)
+        return self.proj_out_2(...)   # 只是输出张量, 不含任何范式语义</code></pre>
+<p>"含义"在<b>外面</b>的 action head 里才被赋予。同一个 <code>self.model</code>（DiT），换一行 loss 就切换范式：</p>
+<pre><code># ── FM 写法 (starVLA 现状) ──
+velocity = actions - noise                    # 目标定义成"速度"
+pred = self.action_decoder(self.model(...))   # self.model 就是 DiT
+loss = ((pred - velocity) ** 2).mean()        # ← 这行让 DiT 输出=速度
+
+# ── 改成 DDPM 写法 (DiT 类一字不改) ──
+target = noise                                # 目标改成"噪声"
+pred = self.action_decoder(self.model(...))   # 同一个 DiT
+loss = ((pred - target) ** 2).mean()          # ← 这行让 DiT 输出=噪声</code></pre>
+
+<h4>所以 "DiT + FM" 没有重复——两者干的是不同的活</h4>
+<table>
+<tr><th>角色</th><th>谁负责</th><th>具体内容</th></tr>
+<tr><td>出题 + 判分 + 采样</td><td><b>范式</b> (DDPM 或 FM)</td><td>怎么构造 xₜ、目标是 ε 还是 v、推理怎么采样</td></tr>
+<tr><td>做题：吃 (xₜ,t,c) 算张量</td><td><b>架构</b> (DiT 或 U-Net)</td><td>Transformer+AdaLN 的矩阵运算</td></tr>
+</table>
+<p>FM 负责"出题和判分"，DiT 负责"做题"。两件事完全不重叠，反而<b>缺一不可</b>——FM 需要一个网络来预测速度场，DiT 正好胜任。"DiT + FM" = 用 Transformer 这个工具，去做 FM 这套题。</p>
+
+<h4>一个类比：菜谱 vs 厨具</h4>
+<div class="pink">
+<b>范式 = 菜谱</b>（红烧 / 清蒸）　|　<b>架构 = 厨具</b>（炒锅 / 蒸锅）
+<ul>
+<li>DDPM 原论文 = 炒锅做红烧（U-Net + DDPM）</li>
+<li>DiT 原论文 = 换口锅做红烧（Transformer + DDPM）——换厨具，菜谱没变</li>
+<li>π0 / GR00T = 用 DiT 这口锅做清蒸（Transformer + FM）——厨具和菜谱各自独立换</li>
+</ul>
+你不会说"用蒸锅就一定是清蒸"。锅（DiT）和菜谱（FM/DDPM）本来就是两个正交的选择——这正是 Tab 0 那张 2×2 表的含义。
+</div>
+</div>
+
+<div class="section">
 <h2>2.2 AdaLN 公式</h2>
 <p>普通 LayerNorm：<code>LN(x) = γ·norm(x) + β</code>，γ/β 是固定可学参数。</p>
 <p>AdaLN：让 γ/β <b>由条件动态生成</b>：</p>
