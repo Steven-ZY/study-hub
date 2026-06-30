@@ -148,7 +148,97 @@ li{margin:4px 0}
 <tr><td>DP 用途</td><td>训练时 K=100</td><td>推理时 10-16 步（实时）</td></tr>
 </table>
 <div class="eq">DDIM: xₜ₋₁ = √ᾱₜ₋₁·(x̂₀) + √(1−ᾱₜ₋₁)·ε_θ(xₜ,t)</div>
-<p>其中 x̂₀ = (xₜ − √(1−ᾱₜ)·ε_θ)/√ᾱₜ 是当前估计的干净数据。DDIM 可看作 ODE 离散化（见 Tab 4）。</p>
+<p>其中 x̂₀ = (xₜ − √(1−ᾱₜ)·ε_θ)/√ᾱₜ 是当前估计的干净数据。下面 1.2b 专门讲透 DDIM。</p>
+</div>
+
+<div class="section">
+<h2>1.2b 深入 DDIM：DDPM 为什么能从 1000 步压到 10 步</h2>
+
+<h4>① 它解决什么问题</h4>
+<p>DDPM 推理要沿反向马尔可夫链一步步走，<b>100~1000 步</b>，每步一次网络前向——太慢，机器人根本没法实时（DP 要 10Hz）。DDIM (Song et al. 2021) 的目标：<span class="hl">用同一个已训练好的 ε_θ，不重新训练，把采样压到 10~50 步</span>。</p>
+<div class="key"><b>关键前提</b>：DDIM 不改训练！它复用 DDPM 训练出来的噪声预测网络 ε_θ。只是换了一套"反向走法"。这就是为什么 dp 仓库里训练代码一行不动、只换 scheduler 就能加速。</div>
+
+<h4>② 核心洞察：训练目标其实不绑定"那条马尔可夫链"</h4>
+<p>DDPM 的训练 loss <code>‖ε − ε_θ‖²</code> 只依赖<b>边缘分布</b> q(xₜ|x₀)=√ᾱₜx₀+√(1−ᾱₜ)ε，并不关心 xₜ 与 xₜ₋₁ 之间具体怎么连。</p>
+<p>Song 等人发现：可以构造一族<b>非马尔可夫</b>的前向过程，它们的边缘分布 q(xₜ|x₀) 完全相同（所以同一个 ε_θ 依然有效），但反向过程的随机性可调。用一个参数 σ 控制：</p>
+<div class="eq">xₜ₋₁ = √ᾱₜ₋₁·x̂₀ &nbsp;+&nbsp; √(1−ᾱₜ₋₁−σ²)·ε_θ(xₜ,t) &nbsp;+&nbsp; σ·z,&nbsp; z~N(0,I)</div>
+<ul>
+<li>x̂₀ = (xₜ − √(1−ᾱₜ)·ε_θ)/√ᾱₜ &nbsp;——用当前预测的噪声反推"干净数据估计"</li>
+<li><b>σ 最大</b> → 退化回 <b>DDPM</b>（随机马尔可夫）</li>
+<li><b>σ = 0</b> → <b>DDIM</b>：去掉随机项 σ·z，整个过程<b>确定性</b></li>
+</ul>
+
+<h4>③ σ=0 带来两个好处</h4>
+<ol>
+<li><b>确定性</b>：同一噪声起点 → 同一输出（可复现、可插值）</li>
+<li><b>可跳步</b>：既然不依赖马尔可夫的"逐步"假设，就能在时间步子集 {1000, 900, ..., 0} 上跳着走，10 步直达</li>
+</ol>
+
+<h4>④ 为什么 DDIM 是"概率流 ODE"——通往 Flow Matching 的桥</h4>
+<p>当 σ=0 且步长趋近无穷小时，DDIM 的离散更新收敛到一个<b>常微分方程 (ODE)</b>：</p>
+<div class="eq">dx/dt = f(x,t) − ½g²(t)·∇ₓlog p(x) &nbsp;&nbsp;(概率流 ODE)</div>
+<p>也就是说，<b>DDIM 采样 = 用欧拉法解这条 ODE</b>。而 Flow Matching 是<b>直接学</b>一条 ODE 的速度场。两者都在"解 ODE"，只是：</p>
+<div class="pink">
+<b>DDIM</b>：先按 DDPM 那条<b>弯曲</b>的加噪路径训练，事后才发现可以当 ODE 解 → 路径弯，欧拉法要多走几步<br>
+<b>Flow Matching</b>：训练时就把路径设成<b>直线</b> → ODE 极好解，4 步就够
+</div>
+<p>这就是 Tab 4 "统一视角"里"DDIM 与 FM 殊途同归"的精确含义——它们解的是同类 ODE，区别在路径直不直。</p>
+
+<h4>⑤ 代码：换 scheduler 即可，训练零改动</h4>
+<p><span class="path">dp: diffusion_policy/workspace/* 配置 + policy 里的 noise_scheduler</span></p>
+<pre><code># 训练时: DDPMScheduler, num_train_timesteps=100
+noise_scheduler = DDPMScheduler(num_train_timesteps=100, ...)
+
+# 推理时想加速: 直接换成 DDIMScheduler, 复用同一个 ε_θ 权重!
+noise_scheduler = DDIMScheduler(num_train_timesteps=100, ...)
+self.num_inference_steps = 16        # 只走 16 步
+
+# conditional_sample 里的循环逻辑完全不变:
+for t in scheduler.timesteps:                 # DDIM 只有 16 个 t
+    model_output = model(trajectory, t, ...)  # 同一个网络
+    trajectory = scheduler.step(model_output, t, trajectory).prev_sample
+    #            ↑ scheduler.step 内部从 DDPM 公式换成 DDIM 公式 (σ=0)</code></pre>
+<div class="note"><b>记住这个解耦</b>：ε_θ（网络权重）+ 训练 loss 属于"范式与模型"，scheduler 属于"采样器"。DDPM↔DDIM 只换采样器，是即插即用的。这也是 diffusers 库设计的精髓。</div>
+</div>
+
+<div class="section">
+<h2>1.2c DDPM / DDIM / Flow Matching 三者区别与联系</h2>
+<h4>一张表看清</h4>
+<table>
+<tr><th>维度</th><th>DDPM</th><th>DDIM</th><th>Flow Matching</th></tr>
+<tr><td>本质</td><td>生成范式(训练+采样)</td><td>DDPM 的<b>采样器</b>(不改训练)</td><td>生成范式(训练+采样)</td></tr>
+<tr><td>训练目标</td><td>预测噪声 ε</td><td><b>不训练</b>，复用 DDPM 的 ε_θ</td><td>预测速度 v=x₁−x₀</td></tr>
+<tr><td>路径</td><td>加噪马尔可夫链(弯)</td><td>同 DDPM 的边缘分布(弯)</td><td>线性插值(直)</td></tr>
+<tr><td>采样性质</td><td>随机 (σ 最大)</td><td>确定性 (σ=0)</td><td>确定性 (解 ODE)</td></tr>
+<tr><td>采样步数</td><td>100~1000</td><td>10~50</td><td>4~10</td></tr>
+<tr><td>数学对象</td><td>反向 SDE 离散化</td><td>概率流 ODE 离散化</td><td>直接学 ODE 速度场</td></tr>
+<tr><td>能否跳步</td><td>否(逐步马尔可夫)</td><td>是</td><td>是</td></tr>
+</table>
+
+<h4>三句话理清关系</h4>
+<ul>
+<li><b>DDIM ⊂ DDPM 生态</b>：DDIM 不是新范式，是 DDPM 的"快速采样模式"。同一族公式里 σ 从大调到 0，DDPM 平滑变成 DDIM。</li>
+<li><b>DDIM 是 DDPM 通往 ODE 的桥</b>：σ=0 让随机 SDE 退化成确定性 ODE，从此可以用 ODE 求解器(欧拉/RK)加速。</li>
+<li><b>FM 是"生来就是直路的 ODE"</b>：DDIM 是把弯路当 ODE 解(将就)，FM 是训练时就修一条直路(根治)。所以 FM 步数能更少、更稳。</li>
+</ul>
+
+<h4>用"赶路"打个比方</h4>
+<div class="pink">
+目标：从噪声地 → 数据地。<br>
+<b>DDPM</b>：沿一条蜿蜒山路、每步还随机抖一下，走 1000 步稳妥到达。<br>
+<b>DDIM</b>：同一条山路，但不再随机抖（确定性），而且可以大步跨着走，10 步到。<br>
+<b>FM</b>：干脆<b>修一条直达高速</b>（训练时就把路拉直），4 步飙到。<br>
+注意：DDPM 和 DDIM 走的是<b>同一条路</b>(同一个 ε_θ)，只是走法不同；FM 走的是<b>另一条更直的路</b>(不同训练)。
+</div>
+
+<h4>对应到本仓库代码</h4>
+<table>
+<tr><th>方法</th><th>训练</th><th>推理采样器</th><th>仓库</th></tr>
+<tr><td>DP (默认)</td><td>DDPM loss, K=100</td><td>DDIM, 16 步</td><td class="path">dp</td></tr>
+<tr><td>GR00T 动作头</td><td>FM loss (预测 v)</td><td>ODE 欧拉, 4 步</td><td class="path">starVLA</td></tr>
+<tr><td>π0</td><td>FM loss (预测 v)</td><td>ODE 欧拉, 10 步</td><td class="path">openpi</td></tr>
+</table>
+<p>DP 是"DDPM 训练 + DDIM 采样"的典型；π0/GR00T 是"FM 训练 + ODE 采样"。看懂这两行，就理解了当前动作生成的两条主流技术路线。</p>
 </div>
 
 <div class="section">
@@ -555,7 +645,7 @@ Diffusion Policy(2023, DDPM+UNet/Transf)
 <!-- Panel 6: Quiz -->
 <div class="panel" id="panel-quiz">
 <div class="section">
-<h2>6. 自测：12 题检验你是否真懂三者关系</h2>
+<h2>6. 自测：15 题检验你是否真懂四者关系</h2>
 <p>选完点提交，即时判分 + 解析。</p>
 <div id="quiz"></div>
 <div id="score" style="margin-top:20px;padding:16px;border-radius:8px;text-align:center;font-size:1.2em;display:none"></div>
@@ -607,7 +697,16 @@ o:["DDPM + Transformer","Flow Matching + U-Net","DiT + Flow Matching","以上都
 a:3,e:"范式(DDPM/FM)与架构(UNet/DiT)正交，2×2 任意组合都成立。"},
 {q:"Diffusion Policy 把 DDPM 从图像生成迁移到动作，主要改了什么？",
 o:["重写了 DDPM 数学","把生成对象换成动作序列、条件换成观测，范式本身不改","发明了新的采样器","去掉了去噪网络"],
-a:1,e:"DP 的创新在'怎么用'：x₀ 从图片变动作序列、条件变观测、加 receding horizon，DDPM 本身没改。"}
+a:1,e:"DP 的创新在'怎么用'：x₀ 从图片变动作序列、条件变观测、加 receding horizon，DDPM 本身没改。"},
+{q:"DDIM 相对 DDPM 最准确的描述是？",
+o:["一种全新的训练范式，需要重新训练网络","DDPM 的确定性快速采样器，复用同一个 ε_θ、不重新训练","只能用于图像不能用于动作","比 DDPM 精度一定低"],
+a:1,e:"DDIM 不改训练，复用 DDPM 训出的 ε_θ，仅把采样从随机马尔可夫(σ大)换成确定性(σ=0)，从而可跳步加速。"},
+{q:"为什么说 DDIM 是 DDPM 通往 Flow Matching 的桥？",
+o:["DDIM 也预测速度场","σ=0 时 DDIM 退化成概率流 ODE，而 FM 直接学 ODE 速度场，二者都在解 ODE","DDIM 用了 Transformer","三者训练目标相同"],
+a:1,e:"DDIM σ=0 对应概率流 ODE(把弯路当ODE解)；FM 训练时就把路径修直(直接学ODE)。都在'解ODE'，区别是路径直不直。"},
+{q:"在 dp 仓库中，从 DDPM 采样切换到 DDIM 采样需要做什么？",
+o:["重新训练整个模型","只需把 noise_scheduler 从 DDPMScheduler 换成 DDIMScheduler，训练代码不动","修改 U-Net 结构","改 loss 函数"],
+a:1,e:"采样器与训练解耦：换 scheduler + 设 num_inference_steps 即可，ε_θ 权重和训练 loss 完全复用。"}
 ];
 
 function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{
@@ -627,8 +726,8 @@ function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{
     else{document.getElementById(`opt-${i}-${v}`).style.borderColor='var(--red)';document.getElementById(`opt-${i}-${v}`).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}
   else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});
   const sc=document.getElementById('score');sc.style.display='block';let m='',c='';
-  if(s>=11){m='🏆 三剑客融会贯通！';c='var(--green)';}else if(s>=8){m='👍 框架清晰，细节再抠';c='var(--accent)';}
-  else if(s>=6){m='📖 及格，建议重读 Tab 0/4';c='var(--orange)';}else{m='💪 回去重读关系总览与统一视角';c='var(--red)';}
+  if(s>=14){m='🏆 四者融会贯通！';c='var(--green)';}else if(s>=11){m='👍 框架清晰，细节再抠';c='var(--accent)';}
+  else if(s>=8){m='📖 及格，建议重读 Tab 0/1.2/4';c='var(--orange)';}else{m='💪 回去重读关系总览与统一视角';c='var(--red)';}
   sc.style.background='var(--surface2)';sc.style.border='2px solid '+c;sc.style.color=c;sc.innerHTML=`得分：${s} / ${QUIZ.length}　${m}`;
   sc.scrollIntoView({behavior:'smooth',block:'center'});}
 renderQuiz();
