@@ -35,6 +35,12 @@
       "target": "pages/dp/dp_dit_flowmatching.html",
       "title": "DP·DiT·Flow Matching 三剑客",
       "category": "diff"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/vls/vls_analysis.html",
+      "target": "pages/vls/vls_analysis.html",
+      "title": "VLS 全解析 · 训练-free 推理时引导",
+      "category": "vla"
     }
   ]
 }
