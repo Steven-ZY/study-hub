@@ -51,6 +51,7 @@ tr:nth-child(even){background:rgba(255,255,255,0.02)}
 <a href="#results">5. 评测结果</a>
 <a href="#findings">6. 关键发现</a>
 <a href="#conclusion">7. 结论</a>
+<a href="#steering">8. Steering 启示</a>
 </nav>
 
 <main>
@@ -131,16 +132,22 @@ while time &gt;= -dt / 2:
 <h2 class="sec">5. 评测结果</h2>
 <p>评测基准:LIBERO-PRO,4 suite(Goal/Spatial/10/Object)× 两种 OOD(Position/swap、Task)。Policy:π-0.5 LeRobot 作者权重。VLM guidance backend:codex gpt-5.5。</p>
 
+<h3>5.0 📊 完整结论总表(先看这张)</h3>
+<figure><img src="assets/figN_summary.png" alt="图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)" loading="lazy"/><figcaption>图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)</figcaption></figure>
+<div class="callout c-green"><b>三条核心结论:</b>① VLS 对 Object suite 的 OOD 有效(swap 14→36%、task 12→20%);② 多阶段任务缺 stage recognition 会反降(goal swap 28→16%);③ 长程任务 LIBERO10 是能力边界(swap 1%、task 0.5%)。</div>
+
 <h3>5.1 🖥️ 本机 object 四种 OOD(n=10)</h3>
 <figure><img src="assets/fig1_local_object_ood.png" alt="图 1:本机 object 四种 OOD —— 只有 swap 时 VLS 显著提升(10%→50%)" loading="lazy"/><figcaption>图 1:本机 object 四种 OOD —— 只有 swap 时 VLS 显著提升(10%→50%)</figcaption></figure>
 
-<h3>5.2 🌐 开发机 Swap 全量(n=200)</h3>
-<figure><img src="assets/figE_dev_interim_results.png" alt="图 E:开发机 swap 全量 —— baseline 已完成,部分 VLS 进行中" loading="lazy"/><figcaption>图 E:开发机 swap 全量 —— baseline 已完成,部分 VLS 进行中</figcaption></figure>
-<div class="callout c-red"><b>注意 Goal:</b>VLS(16.5%)反而 &lt; baseline(27.5%)。原因见第 6 节(多阶段任务 + 关 stage recognition)。</div>
+<h3>5.2 🌐 开发机 Swap 全量(n=200,最终数据)</h3>
+<figure><img src="assets/figE_dev_interim_results.png" alt="图 E:开发机 swap 全量最终结果 —— Object 14→36% 有效,Goal 反降,Spatial 因 kmeans 卡死不可靠" loading="lazy"/><figcaption>图 E:开发机 swap 全量最终结果 —— Object 14→36% 有效,Goal 反降,Spatial 因 kmeans 卡死不可靠</figcaption></figure>
+<div class="callout c-green"><b>Object-Swap 14.0%→36.4%</b>:VLS 有效纠偏,与论文 Position-Object(16→45%)同量级。</div>
+<div class="callout c-red"><b>Goal-Swap 27.5%→16.5%(反降)</b>:多阶段任务 + 关 stage recognition 所致,见第 6 节。</div>
 
-<h3>5.3 🌐 开发机 Task 扰动(方案 A,进行中)</h3>
+<h3>5.3 🌐 开发机 Task 扰动(方案 A,n=200 完成)</h3>
 <figure><img src="assets/figH_task_base_vs_vls.png" alt="图 H:Task 扰动 baseline vs VLS(关 stage recognition)" loading="lazy"/><figcaption>图 H:Task 扰动 baseline vs VLS(关 stage recognition)</figcaption></figure>
 <figure><img src="assets/figI_task_vs_swap.png" alt="图 I:同 suite 下 Task 比 Swap 更难" loading="lazy"/><figcaption>图 I:同 suite 下 Task 比 Swap 更难</figcaption></figure>
+<div class="callout c-blue">object_task:VLS 20.5% &gt; baseline 12.0%(方向正确,但 &lt; 论文 41%,因关 stage recognition)。10_task 仅 0.5%,再证长程边界。</div>
 
 <h3>5.4 📹 引导前后轨迹视频(可播放)</h3>
 <div class="grid2">
@@ -182,6 +189,34 @@ while time &gt;= -dt / 2:
 <li><b>复现条件</b>:完整对齐论文 Task 指标需 Google Gemini key 开启 stage recognition。</li>
 </ul>
 <p class="lead">本页所有图表来自真实评测,视频为开发机真实 rollout。详细记录见仓库 <code>midocx/vls_完整记录.md</code>。</p>
+</section>
+
+<section id="steering">
+<h2 class="sec">8. 对 Steering 课题的启示</h2>
+<p>把 VLS 复现中暴露的问题,提炼成对后续「推理时引导 / steering」课题的可操作指导。</p>
+
+<h3>8.1 VLS 的三个软肋 = 课题突破口</h3>
+<table>
+<tr><th>VLS 局限</th><th>暴露证据</th><th>课题切入</th></tr>
+<tr><td>依赖 stage recognition 且绑死 Gemini</td><td>goal_swap 反降 28→16%</td><td>stage 识别改走开源/自建 VLM,或用 policy 内部信号自动切 stage</td></tr>
+<tr><td>多阶段 reward 方向冲突</td><td>goal 的 stage1/stage2 目标相反</td><td>多阶段引导的 reward 编排:自动判断当前该用哪个子目标</td></tr>
+<tr><td>长程任务几乎无效</td><td>LIBERO10 swap 1% / task 0.5%</td><td>分层引导 / 关键步引导 / 与 replanning 结合</td></tr>
+</table>
+
+<h3>8.2 引导机制的通用洞见</h3>
+<div class="callout c-red"><b>引导不是越强越好,方向对才关键。</b>goal 案例证明:reward 方向错时,强引导把动作钉死在错误目标,比不引导更差。steering 课题必须先保证「引导目标与当前真实子目标对齐」。</div>
+<div class="callout c-blue"><b>自适应强度(Sigmoid)不够。</b>VLS 用 reward 值调强度(远强近弱),但解决不了「reward 本身指错方向」。可研究引导方向的置信度估计,方向不确定时降级。</div>
+<div class="callout c-green"><b>任务结构决定引导难度。</b>单关键阶段(object)最适合引导,多阶段/长程是难点。选题先想清目标任务是哪种结构。</div>
+
+<h3>8.3 做 steering 实验的方法论</h3>
+<ul>
+<li><b>推理时引导 = 每步调外部模型,极慢且脆弱。</b>VLS 单 episode 慢约 10×,还因 kmeans NaN 卡死近 2 天。课题设计要预留:超时看门狗、NaN 防护、日志降噪。</li>
+<li><b>评测要区分 OOD 类型</b>(Position/Task/长程),不同类型对引导响应完全不同,混看平均会掩盖结论。</li>
+<li><b>判断实验是否推进,看业务里程碑(episode 完成数),不是进程存活或 GPU 占用。</b>这是最贵的教训(白等近 2 天)。</li>
+<li><b>多个 LLM 调用点别假设共用一个 key</b>,逐个确认 SDK 与凭证。</li>
+</ul>
+
+<div class="callout c-blue"><b>一句话总结:</b>VLS 证明了「训练-free 推理时引导」在<b>单阶段 Position OOD</b> 上有效(object 14→36%),但<b>多阶段 reward 编排</b>和<b>长程任务</b>是软肋,且<b>强依赖闭源 stage 识别</b>——这三点正是 steering 课题最有价值的突破口。</div>
 </section>
 
 <footer style="color:var(--dim);font-size:0.8em;text-align:center;padding:30px 0">VLS 分析 · 基于真实部署与评测 · 本机 RTX3090 + 开发机 8×RTX4090</footer>
