@@ -117,11 +117,13 @@ tr:hover td { background: rgba(96,165,250,0.05); }
 </header>
 
 <div class="tabs">
-  <div class="tab active" data-tab="overview">整体架构</div>
+  <div class="tab active" data-tab="beginner">🎓 新手入门</div>
+  <div class="tab" data-tab="overview">整体架构</div>
   <div class="tab" data-tab="backbones">Backbone 层</div>
   <div class="tab" data-tab="action-heads">Action Head 层</div>
   <div class="tab" data-tab="catalog">全部模型清单</div>
   <div class="tab" data-tab="layers">层与VLM深究</div>
+  <div class="tab" data-tab="datasets">数据集</div>
   <div class="tab" data-tab="dataflow">训练数据流</div>
   <div class="tab" data-tab="deepdive">深度数据流</div>
   <div class="tab" data-tab="compare">方法对比</div>
@@ -129,8 +131,152 @@ tr:hover td { background: rgba(96,165,250,0.05); }
   <div class="tab" data-tab="quiz">自测</div>
 </div>
 
+<!-- Panel: Beginner -->
+<div class="panel active" id="panel-beginner">
+  <h2 style="margin-bottom:16px">🎓 VLA 新手入门：从零建立全局认知</h2>
+  <div class="note" style="margin-bottom:18px"><b>这一页给完全零基础的人。</b>读完你能回答：VLA 是什么、为什么需要它、一个机器人从"看到"到"动起来"中间发生了什么、动作和观测到底长什么样、数据从哪来。看懂后再去其它 tab 深入。</div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">1. VLA 是什么？一句话</h3>
+    <p><b>VLA = Vision-Language-Action 模型</b>：一个神经网络，输入是<b>相机图像(Vision) + 语言指令(Language)</b>，输出是<b>机器人的动作(Action)</b>。</p>
+    <pre style="font-size:0.85em;line-height:1.6"><code>  [相机看到的画面] + "把红色杯子放到盘子上"
+                    │
+                    ▼
+              ┌──────────┐
+              │  VLA 模型 │
+              └──────────┘
+                    │
+                    ▼
+   [机械臂未来几步怎么动: 往哪走、夹爪开还是合]</code></pre>
+    <p>类比：ChatGPT 是"文字进、文字出"；VLA 是"图像+文字进、<b>机器人动作</b>出"。它把大模型的理解能力接到了真实机器人身上。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">2. 为什么需要 VLA？它取代了什么</h3>
+    <table>
+      <tr><th>老办法</th><th>问题</th><th>VLA 的改进</th></tr>
+      <tr><td>传统运动规划 (先感知→建模→规划轨迹)</td><td>每个任务要人工写规则，换任务/换物体就崩</td><td>从演示数据端到端学，换任务只需换数据</td></tr>
+      <tr><td>强化学习 (试错学习)</td><td>真机试错慢又危险，奖励难设计</td><td>用人类演示直接模仿，不用试错</td></tr>
+      <tr><td>普通模仿学习 (无语言)</td><td>一个模型只会一个任务，不懂指令</td><td>语言指令控制，一个模型做多任务</td></tr>
+    </table>
+    <div class="key"><b>VLA 的核心价值</b>：① <b>语言可控</b>——同一个模型，说不同的话做不同的事；② <b>泛化</b>——借助大模型预训练的常识，能应对没见过的物体/场景；③ <b>端到端</b>——不用人工设计每一步，从演示里学。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--green);margin-bottom:12px">3. 一个完整例子：从"看到杯子"到"手臂动起来"</h3>
+    <p>假设任务是 <b>"pick up the red cup"</b>（拿起红杯子）。全流程：</p>
+    <pre style="font-size:0.82em;line-height:1.55"><code>① 观测(Observation): 2 个相机拍照 + 读机械臂当前姿态
+   images = [主视角RGB, 腕部RGB]   state = 当前末端位姿+夹爪开合
+
+② 输入模型: images + "pick up the red cup" + state
+   → VLM 把图像和文字编码成特征 (理解"红杯子在哪、要抓它")
+
+③ Action Head 生成动作: 输出未来 16 步动作序列
+   action = [[Δx,Δy,Δz, Δroll,Δpitch,Δyaw, gripper], ... 共16行]
+
+④ 执行(Receding Horizon): 只执行前 8 步 → 机械臂移动
+   → 执行完重新拍照, 回到 ①, 循环
+
+⑤ 直到杯子被拿起 → 任务成功</code></pre>
+    <p>这就是一次完整的"感知→决策→执行→再感知"的闭环。VLA 模型负责的是 ②③ 两步。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--orange);margin-bottom:12px">4. "动作"到底是什么？7 维拆解</h3>
+    <p>最常见的机械臂动作是 <b>7 维向量</b>（每一步）：</p>
+    <table>
+      <tr><th>维度</th><th>含义</th><th>说明</th></tr>
+      <tr><td>1-3</td><td>x, y, z 位移</td><td>末端(夹爪)在空间往哪移动</td></tr>
+      <tr><td>4-6</td><td>roll, pitch, yaw 旋转</td><td>夹爪姿态怎么转 (也可能用 6D 旋转表示)</td></tr>
+      <tr><td>7</td><td>gripper 夹爪</td><td>开(0)还是合(1)</td></tr>
+    </table>
+    <div class="note"><b>两个关键概念</b>：<br>
+    • <b>绝对 vs 相对</b>：动作可以是"移动到坐标(x,y,z)"（绝对/位置控制），也可以是"相对当前移动Δ"（相对/速度控制）。Diffusion Policy 论文发现<b>位置控制通常更好</b>。<br>
+    • <b>归一化</b>：训练前动作数值会归一化到 [-1,1]，推理后再还原——否则不同维度量纲差异大，网络难学。<br>
+    • <b>action chunk（动作块）</b>：VLA 不是一次只出 1 步，而是一次出一串（如 16 步），这叫 action chunk，能让动作更连贯、抗延迟。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--pink);margin-bottom:12px">5. 模型怎么学会的？模仿学习 + 数据从哪来</h3>
+    <p>VLA 主要靠 <b>模仿学习 / 行为克隆 (Behavior Cloning, BC)</b>：给它看大量"专家怎么做"的演示，让它模仿。</p>
+    <h4>数据怎么来的？——遥操作 (Teleoperation)</h4>
+    <p>人用手柄/VR/主从臂<b>遥控</b>机器人完成任务，全程记录"每一刻看到什么 + 人让它做什么动作"。一次完整任务录下来叫一条 <b>episode / trajectory（轨迹）</b>。</p>
+    <pre style="font-size:0.82em;line-height:1.5"><code>一条 episode = [
+  (图像_t0, 指令, 动作_t0),
+  (图像_t1, 指令, 动作_t1),
+  ...直到任务完成
+]
+成千上万条 episode → 训练集 → 模型模仿</code></pre>
+    <div class="key"><b>训练目标</b>：给定(图像+指令)，让模型预测出的动作尽量接近演示里人做的动作。就这么简单——没有奖励、没有试错，纯模仿。（具体到 Diffusion/Flow Matching 怎么预测，见 DP·DiT·FM 三剑客页。）</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">6. VLA 发展时间线（建立坐标系）</h3>
+    <pre style="font-size:0.8em;line-height:1.5"><code>2022  Gato / VIMA        早期多任务, 通才尝试
+2023  RT-1 → RT-2        Google, 首次把大 VLM 接到机器人
+      Diffusion Policy   用扩散模型生成动作 (多模态突破)
+2024  OpenVLA            开源 7B VLA, 社区基线
+      Octo               开源通用策略
+      π0                 Physical Intelligence, Flow Matching 动作专家
+2025  π0.5 / GR00T-N1    开放世界泛化 / NVIDIA 人形
+2026  StarVLA            开源"乐高"平台 (本页主角)
+      Qwen-VLA/RobotManip 阿里, OOD-first 评测
+      π0.7 / GigaBrain   RL 自进化 / 世界模型</code></pre>
+    <p>StarVLA 的定位：不是又一个新模型，而是把上面这些方法<b>统一到一个可复现、可替换的代码库</b>里，方便公平对比和快速原型。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">7. 术语小词典（VLA 黑话查询）</h3>
+    <table>
+      <tr><th>术语</th><th>一句话解释</th></tr>
+      <tr><td><b>backbone</b></td><td>主干网络，这里指负责理解图像+语言的 VLM</td></tr>
+      <tr><td><b>action head</b></td><td>动作头，接在 backbone 后面、负责输出动作的模块</td></tr>
+      <tr><td><b>chunk</b></td><td>动作块，一次预测的一串连续动作 (如16步)</td></tr>
+      <tr><td><b>horizon</b></td><td>时间窗口。观测horizon=看几步历史; 预测horizon=预测几步; 执行horizon=执行几步</td></tr>
+      <tr><td><b>rollout</b></td><td>让模型在环境里实际跑一遍任务 (评测时用)</td></tr>
+      <tr><td><b>proprioception</b></td><td>本体感觉，机器人自己的关节角/末端位姿等内部状态</td></tr>
+      <tr><td><b>embodiment</b></td><td>本体，指具体的机器人形态 (单臂/双臂/不同型号)</td></tr>
+      <tr><td><b>cross-embodiment</b></td><td>跨本体，在一种机器人上训练、迁移到另一种</td></tr>
+      <tr><td><b>teleoperation</b></td><td>遥操作，人远程操控机器人来采集演示数据</td></tr>
+      <tr><td><b>episode / trajectory</b></td><td>一条完整任务的记录 (观测+动作序列)</td></tr>
+      <tr><td><b>BC (Behavior Cloning)</b></td><td>行为克隆，模仿演示数据的学习方式</td></tr>
+      <tr><td><b>OOD</b></td><td>Out-Of-Distribution，分布外，指测试时遇到训练没见过的情况</td></tr>
+      <tr><td><b>checkpoint</b></td><td>训练过程中保存的模型权重文件</td></tr>
+      <tr><td><b>denoise / 去噪</b></td><td>扩散模型从噪声一步步生成动作的过程</td></tr>
+      <tr><td><b>SFT</b></td><td>监督微调，用标注数据训练模型</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px">
+    <h3 style="color:var(--green);margin-bottom:12px">8. 推荐学习路径</h3>
+    <pre style="font-size:0.82em;line-height:1.6"><code>你在这里 ──► 🎓 新手入门 (建立全局观)
+              │
+              ▼
+         整体架构 (Backbone + Action Head 分解)
+              │
+              ▼
+    Backbone层 / Action Head层 (两大模块分别理解)
+              │
+              ├──► 想懂动作头背后的扩散数学?
+              │     去 → "DP·DiT·Flow Matching 三剑客" 页
+              │
+              ▼
+    层与VLM深究 (VLM 的层、选层策略)
+              │
+              ▼
+    数据集 (训什么、测什么、OOD)
+              │
+              ▼
+    全部模型清单 / 方法对比 / OpenPI对比 (进阶横向)
+              │
+              ▼
+         自测 (检验掌握)</code></pre>
+    <div class="note">卡在术语上随时回本页第 7 节查词典。想深入某个动作头的数学原理，去看 <b>DP·DiT·Flow Matching 三剑客</b> 页（study-hub 首页可进）。</div>
+  </div>
+</div>
+
 <!-- Panel: Overview -->
-<div class="panel active" id="panel-overview">
+<div class="panel" id="panel-overview">
   <h2 style="margin-bottom:16px">核心设计：Backbone-Action Head 分解</h2>
   <p style="color:var(--text-dim);margin-bottom:20px">VLA 系统被拆解为两个通过标准化隐状态契约连接的可替换模块。点击任意模块查看详情。</p>
 
@@ -492,6 +638,110 @@ VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
 
 选层规则: 相对索引 [-N:] (N=DiT层数), 换backbone自动适配
 → 这就是 starVLA 和"原作者固定层号"不同的原因: 为可移植性</code></pre>
+  </div>
+</div>
+
+<!-- Panel: Datasets -->
+<div class="panel" id="panel-datasets">
+  <h2 style="margin-bottom:16px">数据集：VLA 训什么、测什么</h2>
+  <div class="note" style="margin-bottom:18px">VLA 的能力上限很大程度由数据决定。这一节梳理：① 训练用的大规模数据 ② 评测用的 benchmark ③ 不同数据类型各教会模型什么 ④ 为什么 OOD 评测越来越重要。<br><span style="font-size:0.85em;color:var(--text-dim)">（内容整理自 195 篇论文数据集分析 + 各数据类型作用综述）</span></div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">1. 先分清：训练数据 vs 评测 benchmark</h3>
+    <table>
+      <tr><th></th><th>训练数据</th><th>评测 benchmark</th></tr>
+      <tr><td>目的</td><td>让模型学会动作</td><td>衡量模型好不好</td></tr>
+      <tr><td>规模</td><td>越大越好 (千小时级)</td><td>够覆盖任务即可</td></tr>
+      <tr><td>代表</td><td>Open X-Embodiment, DROID, BridgeData V2</td><td>LIBERO, CALVIN, RoboCasa, SimplerEnv, RoboTwin</td></tr>
+      <tr><td>形态</td><td>多为真机遥操作/合成</td><td>多为仿真 (可复现、免真机)</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">2. 大规模训练数据集（喂给模型学的）</h3>
+    <table>
+      <tr><th>数据集</th><th>规模</th><th>机器人</th><th>特色 / 谁在用</th></tr>
+      <tr><td><b>Open X-Embodiment (OXE)</b></td><td>1M+ episodes / 22 种机器人</td><td>多本体</td><td>Google 主导的跨本体开源联盟，统一 RLDS 格式。OpenVLA/π0/GR00T/Qwen-VLA 预训练</td></tr>
+      <tr><td><b>DROID</b></td><td>76K+ episodes / 564 场景</td><td>Franka (多实验室)</td><td>分布式采集、多样性极高、多相机。被引最多(31篇)</td></tr>
+      <tr><td><b>BridgeData V2</b></td><td>60K+ episodes</td><td>WidowX 250</td><td>多场景桌面操作、语言标注丰富。SuSIE/OpenVLA 微调</td></tr>
+      <tr><td><b>AgiBotWorld</b></td><td>大规模</td><td>人形/双臂</td><td>GR00T/Qwen-RobotManip 用</td></tr>
+      <tr><td><b>RoboMIND</b></td><td>大规模多任务</td><td>多种</td><td>Qwen-RobotManip 用(但发现 UR 数据 81% 未通过质量检查)</td></tr>
+    </table>
+    <div class="warn"><b>关键教训：数据多 ≠ 数据好</b>。OpenVLA 曾因质量问题在训练末期移除部分 DROID 权重；Qwen-RobotManip 发现 RoboMIND UR 数据 81% 未通过 state-action 一致性检查。<b>大规模异构数据必须先严格清洗对齐</b>（状态/动作/视频/语言一致性），否则规模会变成噪声甚至冲突。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--green);margin-bottom:12px">3. 评测 benchmark（测模型好不好的）</h3>
+    <h4>标准 benchmark（广泛使用）</h4>
+    <table>
+      <tr><th>名称</th><th>任务</th><th>机器人</th><th>典型用途</th></tr>
+      <tr><td><b>LIBERO</b></td><td>130任务(Spatial/Object/Goal/Long各套)</td><td>Franka Panda</td><td>VLA 基础能力评测<b>首选</b>，几乎所有论文都报(被引29篇)</td></tr>
+      <tr><td><b>CALVIN</b></td><td>34任务, ABCD 4环境</td><td>Franka (PyBullet)</td><td>长程语言条件操作；ABC→D 是天然 zero-shot OOD；引导类方法聚集地</td></tr>
+      <tr><td><b>RoboCasa</b></td><td>100任务(365版更大)</td><td>Franka / 移动臂</td><td>写实厨房场景，通用策略评测</td></tr>
+      <tr><td><b>SimplerEnv</b></td><td>Google Robot + WidowX</td><td>2 平台</td><td>仿真复现真机表现、与真机高相关，快速迭代</td></tr>
+      <tr><td><b>RoboTwin 2.0</b></td><td>50 双臂任务</td><td>5 种本体</td><td>大规模双臂泛化评测</td></tr>
+    </table>
+    <h4>OOD / 鲁棒性 benchmark（2025-2026 新趋势）</h4>
+    <table>
+      <tr><th>名称</th><th>OOD 维度</th><th>核心发现</th></tr>
+      <tr><td><b>LIBERO-Plus</b></td><td>7维独立扰动(物体布局/相机视角/初态/语言/光照/背景/噪声)</td><td>相机视角和初态最致命，性能 95%→30%</td></tr>
+      <tr><td><b>LIBERO-PRO</b></td><td>物体替换/初态/指令/环境(4维)</td><td>VLA 依赖记忆而非理解；π0.5 在 Task 扰动下 98%→24%</td></tr>
+      <tr><td><b>RoboTwin-C2R</b></td><td>干净场景训练→随机化场景测试</td><td>StarVLA 从 IID 85.7% 跌到 OOD 10.6%</td></tr>
+      <tr><td><b>RoboTwin-IF</b></td><td>语言指令变体</td><td>测"语言是否真正控制动作"，防 VLA→VA 退化</td></tr>
+      <tr><td><b>RoboTwin-XE</b></td><td>跨本体零样本迁移</td><td>joint 控制几乎不能跨本体(&lt;5%)，需相机系 EEF 对齐</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--orange);margin-bottom:12px">4. 为什么 OOD 评测越来越重要？</h3>
+    <p>核心观点（Qwen-RobotManip 2026）：<b>标准 benchmark 高分已不能证明真泛化</b>。</p>
+    <ul>
+      <li>标准 LIBERO 分数普遍 95%+ 已<b>饱和</b>，无区分度</li>
+      <li>从零训练的模型能在标准 benchmark 上追平大规模预训练模型——说明它<b>只是记住/拟合了分布内模式</b>，没真正理解</li>
+      <li>一进 OOD 设置(换相机/换本体/换指令/随机化)，差距立刻拉开：预训练和对齐的价值才显现</li>
+    </ul>
+    <table>
+      <tr><th>模型</th><th>ID 表现</th><th>OOD 表现</th><th>说明</th></tr>
+      <tr><td>StarVLA</td><td>RoboTwin Easy 85.7%</td><td>C2R OOD <b>10.6%</b></td><td>标准高分 ≠ OOD 泛化</td></tr>
+      <tr><td>π0.5</td><td>ID 强</td><td>OOD 明显优于无预训练模型</td><td>预训练在 OOD 体现价值</td></tr>
+      <tr><td>Qwen-RobotManip</td><td>ID 强</td><td>OOD 更强</td><td>对齐+规模化放大 OOD 能力</td></tr>
+    </table>
+    <div class="key"><b>结论</b>：<b>OOD-first evaluation 正成为 foundation model 的主评测协议</b>。看一个 VLA 强不强，别只看它 LIBERO 多少分，要看它在 LIBERO-Plus / C2R 这类 OOD 下崩不崩。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--pink);margin-bottom:12px">5. 不同数据类型各教会模型什么（进阶）</h3>
+    <p>VLA 训练往往<b>混合多种数据</b>，各司其职、互补而非替代：</p>
+    <table>
+      <tr><th>数据类型</th><th>教会模型什么</th><th>代表</th></tr>
+      <tr><td><b>VLA / 机器人演示</b></td><td>核心：从观测到动作的控制映射</td><td>OXE, DROID, Bridge</td></tr>
+      <tr><td><b>VQA / caption / grounding</b></td><td>看懂物体/属性/关系/语言 (防 VLM 能力退化)</td><td>π0.5, Qwen-RobotManip 用 28M VL 样本</td></tr>
+      <tr><td><b>Embodied VL / ECoT</b></td><td>理解任务进度、下一步该做什么</td><td>Qwen-RobotManip, π0.5</td></tr>
+      <tr><td><b>人类视频 / H2R</b></td><td>补长尾行为、扩场景多样性 (机器人数据贵)</td><td>Qwen-RobotManip 24,808h 合成</td></tr>
+      <tr><td><b>仿真 / 合成</b></td><td>便宜扩规模、覆盖长尾、造 OOD</td><td>GR00T, LingBot</td></tr>
+      <tr><td><b>世界模型 / rollout</b></td><td>预测未来、虚拟训练、验证动作后果</td><td>CosmosPolicy, World-VLA-Loop</td></tr>
+      <tr><td><b>失败 / 偏好数据</b></td><td>知道什么是错、怎么选更优动作</td><td>DWYS/SEAL, RECAP</td></tr>
+      <tr><td><b>触觉 / 力</b></td><td>补视觉看不到的接触状态 (插入/滑移/过力)</td><td>ForceVLA, TactileAloha</td></tr>
+    </table>
+    <div class="note"><b>一句话</b>：VQA/VL 数据负责"看懂说清"，VLA 演示负责"会动手"，人类视频负责"扩多样性"，仿真负责"便宜扩规模"，触觉/力负责"接触动力学"，失败数据负责"知错能改"。<b>它们互补，不能互相替代。</b></div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px">
+    <h3 style="color:var(--accent);margin-bottom:12px">6. StarVLA 集成了哪些数据集/benchmark</h3>
+    <p>StarVLA 作为统一平台，接入了主流 benchmark 做公平对比（每个 benchmark 一个 <code>examples/</code> 目录 + eval 接口）：</p>
+    <pre style="font-size:0.82em;line-height:1.5"><code>训练数据格式: 统一用 LeRobot format
+接入的 benchmark:
+  LIBERO / LIBERO-plus   examples/LIBERO/, examples/LIBERO-plus/
+  SimplerEnv             examples/SimplerEnv/
+  RoboTwin 2.0           examples/Robotwin/
+  RoboCasa (tabletop/365) examples/Robocasa_tabletop/, Robocasa_365/
+  CALVIN                 examples/calvin/
+  BEHAVIOR-1K            examples/Behavior/
+  DOMINO                 examples/DOMINO/
+  VLA-Arena              examples/VLA-Arena/
+  Franka (真机)          examples/Franka/
+预训练数据: Bridge + Fractal(RT-1) 等 OXE 子集 (见 model_zoo)</code></pre>
+    <p style="margin-top:8px">每个 benchmark 目录内含数据准备脚本、训练配置(yaml)、评测接口(model2*_interface.py)，通过 <b>server-client</b> 架构解耦模型推理与环境评测（详见"训练数据流"tab）。</p>
   </div>
 </div>
 
