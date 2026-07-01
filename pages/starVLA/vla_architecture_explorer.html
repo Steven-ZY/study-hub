@@ -121,6 +121,7 @@ tr:hover td { background: rgba(96,165,250,0.05); }
   <div class="tab" data-tab="backbones">Backbone 层</div>
   <div class="tab" data-tab="action-heads">Action Head 层</div>
   <div class="tab" data-tab="catalog">全部模型清单</div>
+  <div class="tab" data-tab="layers">层与VLM深究</div>
   <div class="tab" data-tab="dataflow">训练数据流</div>
   <div class="tab" data-tab="deepdive">深度数据流</div>
   <div class="tab" data-tab="compare">方法对比</div>
@@ -373,7 +374,127 @@ Cosmos-Pred2  │      │  ✓  │  ✓          │  ✓             │
   </div>
 </div>
 
-<!-- Panel: Deep Dive -->
+<!-- Panel: Layers -->
+<div class="panel" id="panel-layers">
+  <h2 style="margin-bottom:16px">深究：VLM 的"层"、选层策略、以及 VLA-VLM 与原生 VLM 的关系</h2>
+  <p style="color:var(--text-dim);margin-bottom:16px">这一节回答一组常被混淆的问题：所谓"不同层"到底是什么？每层是不是一张 feature map？为什么 starVLA 选的层和原作者不同？用自回归的 VLA 还有"层"的概念吗？VLA 里的 VLM 和原生 VLM 有没有区别？</p>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">1. "层"到底是什么？每一层是什么？</h3>
+    <p>VLM 的语言主干是一个 <b>Transformer decoder</b>，由 N 个结构相同的 <b>decoder block</b> 堆叠而成（Qwen3-VL-4B 是 36 层，Gemma-4 约 34 层）。这里说的"层"就是<b>每个 decoder block 的输出</b>。</p>
+    <pre style="font-size:0.8em;line-height:1.5"><code>输入 tokens (图像patch token + 文本token) → embedding
+   │  形状 [B, L, H]   B=batch, L=token序列长, H=hidden_size(如2048)
+   ▼
+┌─ Block 0  ─→ hidden_states[1]   [B, L, H]   ← "第1层输出"
+├─ Block 1  ─→ hidden_states[2]   [B, L, H]
+├─ ...
+└─ Block 35 ─→ hidden_states[36]  [B, L, H]   ← "最后一层输出"
+
+output_hidden_states=True 时, HF 返回 (N+1) 个张量:
+  hidden_states[0]  = embedding 层输出(未过任何block)
+  hidden_states[1..N] = 每个 block 的输出</code></pre>
+    <div class="key"><b>关键澄清：每一层不是"一张 feature map"</b>。它是一个形状 <code>[B, L, H]</code> 的张量——<b>L 个 token、每个 token 一个 H 维向量</b>。它更像"L 个 token 各自的语义向量序列"，而不是 CNN 里那种 [C,H,W] 的空间特征图。图像在进 LLM 前已经被视觉编码器切成 patch token 拉平成序列了，所以 LLM 内部是"序列 × 向量"，没有二维空间结构。</div>
+    <p style="margin-top:10px">不同深度的层编码不同抽象层级的信息（这是 Transformer 的普遍规律）：</p>
+    <table>
+      <tr><th>层深度</th><th>大致编码什么</th><th>类比</th></tr>
+      <tr><td>浅层 (0~1/3)</td><td>低级/局部：token 表面、局部搭配、物体位置纹理</td><td>"看到了什么、在哪"</td></tr>
+      <tr><td>中层 (1/3~2/3)</td><td>中级：短语组合、物体关系、场景布局</td><td>"它们之间什么关系"</td></tr>
+      <tr><td>深层 (2/3~最后)</td><td>高级：任务语义、指令意图、下一步预测</td><td>"要干什么"</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">2. 各 Action Head 用哪些层？——含"用不用层"的对照</h3>
+    <table>
+      <tr><th>Action Head</th><th>用层策略</th><th>取的是什么</th></tr>
+      <tr><td><b>FAST</b>（自回归）</td><td class="hl">不显式取任何隐藏层</td><td>直接用 LLM 的 <b>logits/输出 token</b>——动作是自回归生成序列的一部分</td></tr>
+      <tr><td><b>OFT</b></td><td>仅最后一层 <code>hidden_states[-1]</code></td><td>该层中 <b>action token 位置</b>的向量 → MLP 回归</td></tr>
+      <tr><td><b>GR00T</b></td><td>仅最后一层 <code>hidden_states[-1]</code></td><td>整层 [B,L,H] 作为 DiT 的 cross-attn KV</td></tr>
+      <tr><td><b>PI</b>（层级）</td><td>最后 N 层 <code>hidden_states[-N:]</code></td><td>第 i 层 DiT 对应吃第 i 层 VLM</td></tr>
+      <tr><td><b>PI_v3</b></td><td>最后 N 层 + <b>逐层投影降维</b></td><td>每层经 LayerNorm+Linear 压缩后再喂 DiT</td></tr>
+    </table>
+    <div class="note"><b>回答"是不是有 VLA 不用层的概念"</b>：是的。<b>FAST（自回归）就不用隐藏层</b>——它把动作离散成 token，直接让 LLM 像生成文字一样"说出"动作 token，取的是 LLM 顶端的 logits，不碰中间任何 hidden_states。"取隐藏层"是给 <b>OFT/GR00T/PI</b> 这类"外挂 action head"用的；自回归范式绕开了这一步。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--green);margin-bottom:12px">3. starVLA 怎么"选层"？代码实现</h3>
+    <p>PI 的选层不是随便挑几层，而是<b>让 DiT 的层数决定取多少层，从 VLM 顶部往下数</b>：</p>
+    <pre style="font-size:0.8em;line-height:1.5"><code># starVLA/model/framework/VLM4A/QwenPI.py
+qwenvl_outputs = self.qwen_vl_interface(..., output_hidden_states=True)
+expected_layers = len(self.action_model.model.transformer_blocks)  # DiT 层数
+vl_embs_list = list(qwenvl_outputs.hidden_states[-expected_layers:])
+#                                                 &#8593; 取"最后 expected_layers 层"
+# DiT 有几层, 就取 VLM 最后几层, 第 i 层 DiT 吃第 i 层 VLM</code></pre>
+    <p>而 <b>QwenPI_v3</b> 更进一步——每层先过一个专属投影器压维再喂 DiT：</p>
+    <pre style="font-size:0.8em;line-height:1.5"><code># starVLA/model/framework/VLM4A/QwenPI_v3.py
+vl_embs_list = list(qwenvl_outputs.hidden_states[-self.num_action_dit_layers:])
+# 每层一个 LayerNorm+Linear 投影: VLM hidden(2560) -> DiT hidden(1024)
+self.project_layers = nn.ModuleList([LayerNorm+Linear ...])
+return [proj(vl_h) for proj, vl_h in zip(self.project_layers, vl_embs_list)]</code></pre>
+    <p>世界模型（Wan2.2）则用 <b>forward hook</b> 抓中间 block 输出，层由 <code>extract_layers</code> 配置（默认 <code>[-1]</code>，即只抓最后一层）：</p>
+    <pre style="font-size:0.8em;line-height:1.5"><code># starVLA/model/modules/world_model/Wan2.py
+extract_layers = wm_cfg.get("extract_layers", [-1])
+for layer_idx in self._extract_layers:
+    actual_idx = layer_idx if layer_idx >= 0 else num_blocks + layer_idx
+    block = self.transformer.blocks[actual_idx]
+    block.register_forward_hook(self._capture_hook)  # 挂钩子抓该层输出</code></pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--orange);margin-bottom:12px">4. 为什么 starVLA 选的层可能和原作者不同？</h3>
+    <p>核心原因：<b>starVLA 换了 backbone，原作者的"层号"不再适用，必须重新对齐</b>。几个具体动因：</p>
+    <ol>
+      <li><b>Backbone 不同 → 层数不同</b>。π₀ 原版用 PaliGemma(Gemma-2B, 18 层)，starVLA 的 QwenPI 用 Qwen3-VL-4B(36 层)。原作者"用某几层"的绝对层号搬过来没有意义，starVLA 改成<b>相对规则</b>：DiT 有多少层就取 VLM 最后多少层（<code>hidden_states[-N:]</code>），自动适配任意 backbone。</li>
+      <li><b>参数量/显存权衡</b>。用全部 36 层做层级 cross-attn，DiT 也得 36 层，参数和显存大。PI_v3 因此<b>加逐层投影降维</b>（2560→1024），在"仍用多层"和"可训练"间折中——这是原作者没有的工程改动。</li>
+      <li><b>统一接口的需要</b>。starVLA 要用<b>同一套 action head</b>接不同 backbone（Qwen/Gemma/MiniCPM/Wan/Cosmos）。若沿用各原作者的具体层选择，就无法统一。于是抽象成"取最后 N 层"这种 backbone 无关的规则。</li>
+      <li><b>hidden_states 索引约定差异</b>。HF 的 <code>output_hidden_states</code> 返回 N+1 个张量（含 embedding 层），有的原实现从 embedding 数起、有的从第一个 block 数起。starVLA 统一用负索引 <code>[-N:]</code> 从顶部数，规避这种 off-by-one 分歧。</li>
+    </ol>
+    <div class="key"><b>差异带来的影响</b>：取更深的层→更偏任务语义、动作更"听懂指令"但丢空间细节；取更多层(层级)→多尺度信息更全但更重。starVLA 的选择偏向<b>可移植性和工程可控</b>，而非复刻某个 backbone 上的最优层号——因为它的定位是"乐高平台"，要保证换 backbone 不崩。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">5. VLA 里的 VLM 和原生 VLM 有区别吗？——分情况</h3>
+    <p>答案是：<b>看这个 VLA 用哪种 action head，有的改了 VLM、有的没改</b>。可分三档：</p>
+    <table>
+      <tr><th>档位</th><th>代表</th><th>VLM 本体是否改</th><th>改了什么</th></tr>
+      <tr><td><b>A. 完全不改结构，只微调权重</b></td><td>GR00T / PI / OFT</td><td>结构不变</td><td>VLM 当"特征编码器"，前向照旧输出 hidden_states；只是训练时权重被微调(或冻结)。词表、架构、tokenizer 全不动</td></tr>
+      <tr><td><b>B. 扩词表 + 微调</b></td><td>FAST</td><td>轻改：加 action token</td><td>往 tokenizer/embedding 里<b>新增一批动作 token</b>（如 Qwen2.5-VL-3B-Action），embedding 和 lm_head 相应扩容。主干结构不变，但词表变大了</td></tr>
+      <tr><td><b>C. 改造输入/注意力</b></td><td>π₀ 双 Gemma</td><td>较大改动</td><td>如 π₀ 把动作专家(小 Gemma)和 VLM(大 Gemma)拼进同一注意力空间、加 prefix-suffix 掩码——已不是原生 VLM 的标准前向</td></tr>
+    </table>
+    <div class="note"><b>结论</b>：不能一概而论。<b>大多数"外挂 action head"型 VLA（GR00T/PI/OFT）不改 VLM 结构</b>，VLM 就是个拿来即用的特征编码器（甚至可冻结），和原生 VLM 结构完全一致，区别只在"是否微调权重"和"额外读了中间层"。<b>FAST 轻改</b>（扩词表）。<b>π₀ 这类才真正动了 VLM 结构</b>。</div>
+    <p style="margin-top:10px">对照 starVLA 代码印证 A 档"不改结构"：</p>
+    <pre style="font-size:0.8em;line-height:1.5"><code># QwenGR00T / QwenPI: 直接调 HF 原生模型, 只多要 hidden_states
+qwenvl_outputs = self.qwen_vl_interface(
+    **qwen_inputs, output_hidden_states=True, return_dict=True)
+# &#8593; 就是原生 Qwen-VL 的 forward, 没有任何结构修改
+# 区别仅: (1)可能冻结/低LR微调 (2)读了中间层给 action head</code></pre>
+    <pre style="font-size:0.8em;line-height:1.5"><code># QwenFast: 用原生 generate, 但词表被扩过(含 action token)
+generated_ids = self.qwen_vl_interface.model.generate(...)
+mask = (generated_ids >= act_min) & (generated_ids <= act_max)  # 抓动作token
+# &#8593; 结构没改, 但 tokenizer/embedding 扩了动作词表</code></pre>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px">
+    <h3 style="color:var(--accent);margin-bottom:12px">6. 一图总结</h3>
+    <pre style="font-size:0.78em;line-height:1.5"><code>                   原生 VLM (Qwen3-VL 36层 decoder)
+                   每层输出 hidden_states[i]: [B, L, H]
+                   (L个token各一个H维向量, 非空间feature map)
+                                │
+    ┌───────────────┬──────────┼───────────┬──────────────┐
+    ▼               ▼          ▼           ▼              ▼
+  FAST            OFT        GR00T         PI           PI_v3
+不取隐藏层      取[-1]层     取[-1]层    取[-N:]层    取[-N:]层+投影
+用logits       +action     整层做       第i层DiT      每层LN+Linear
+自回归         token位置    cross-attn   吃第i层VLM    压维再喂
+  │              │          KV            │              │
+VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
+(轻改)         (仅微调)    (仅微调)     (仅微调)      (仅微调)
+
+选层规则: 相对索引 [-N:] (N=DiT层数), 换backbone自动适配
+→ 这就是 starVLA 和"原作者固定层号"不同的原因: 为可移植性</code></pre>
+  </div>
+</div>
+
 <div class="panel" id="panel-deepdive">
   <h2 style="margin-bottom:16px">深度数据流：从像素到动作的完整路径</h2>
 
