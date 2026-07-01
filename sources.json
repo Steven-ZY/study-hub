@@ -41,6 +41,24 @@
       "target": "pages/vls/vls_analysis.html",
       "title": "VLS 全解析 · 训练-free 推理时引导",
       "category": "vla"
+    },
+    {
+      "source": "(built in-place)",
+      "target": "pages/papers/pi0.7.html",
+      "title": "π0.7 可操控通用机器人基础模型",
+      "category": "vla"
+    },
+    {
+      "source": "(built in-place)",
+      "target": "pages/papers/vera.html",
+      "title": "VERA 把视频模型变成机器人策略",
+      "category": "wm"
+    },
+    {
+      "source": "(built in-place)",
+      "target": "pages/papers/world_models.html",
+      "title": "世界模型全景",
+      "category": "wm"
     }
   ]
 }

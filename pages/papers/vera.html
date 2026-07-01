@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VERA — 把视频模型变成通用机器人策略</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--green),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.back{display:inline-block;margin:12px 0;padding:7px 15px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--accent);text-decoration:none;font-size:0.85em}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 16px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.88em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.8em;line-height:1.5}
+code{color:var(--green)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-family:'Cambria Math',serif;font-size:1.02em;margin:10px 0;color:var(--text)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:0.86em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>VERA — 把视频模型变成通用机器人策略</h1>
+<p class="sub">Turning Video Models into Generalist Robot Policies · MIT CSAIL 2026 · arXiv:2605.27817</p>
+<a class="back" href="../../index.html">← 返回 Study Hub</a>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="overview">速览</div>
+<div class="tab" data-tab="arch">两阶段架构</div>
+<div class="tab" data-tab="jidm">Jacobian IDM</div>
+<div class="tab" data-tab="ibvs">与 IBVS 类比</div>
+<div class="tab" data-tab="exp">实验</div>
+<div class="tab" data-tab="takeaway">评价与启发</div>
+</div>
+
+
+<div class="panel active" id="panel-overview">
+<div class="section">
+<h2>一句话</h2>
+<p><b>让 14B 视频生成模型保持"零动作(action-free)"当作梦想未来的世界模型，再训一个基于图像空间雅可比场的逆动力学模型(J-IDM)，通过光流把"梦到的未来画面"反解成机器人动作。</b> 一个视频规划器，多个 IDM——通往零样本、跨本体机器人控制的路线。</p>
+</div>
+<div class="section">
+<h2>速览卡片</h2>
+<table>
+<tr><th>项</th><th>内容</th></tr>
+<tr><td>团队</td><td>MIT CSAIL (Sizhe Lester Li, Evan Kim, Xingjian Bai 等), CMU, Amazon</td></tr>
+<tr><td>核心思路</td><td>解耦"视频规划器(本体无关)" + "J-IDM(本体特异)"</td></tr>
+<tr><td>视频模型</td><td>Wan-14B 开源视频扩散 Transformer，LVP 初始化</td></tr>
+<tr><td>J-IDM 骨干</td><td>VGGT(真机) / DINOv2+DPT(仿真)</td></tr>
+<tr><td>机器人</td><td>Franka Panda(7-DoF) + Allegro Hand(16-DoF)</td></tr>
+<tr><td>数据</td><td>DROID 39,816 episodes(Panda真机)；Allegro真机仅 60-217</td></tr>
+<tr><td>关键结果</td><td>Panda-Sim 94% vs UniPi 0%；真机挑战任务(遮挡/位置) 60-80% vs DreamZero/π0.5 都是 0%</td></tr>
+<tr><td>开源</td><td>是(HuggingFace 有模型；Wave1 已放 MimicGen+PushT)</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>核心贡献</h2>
+<ol>
+<li>VERA 架构：完全解耦视频规划器(不碰 action)与本体特异 J-IDM</li>
+<li><b>Jacobian IDM</b>：学习图像空间雅可比场 J(p,o)∈R^(2×n)，通过正则化伪逆从光流反解动作</li>
+<li>证明 J-IDM 在高自由度下比 Direct-IDM 数据效率高约 2×，且随 DoF 增长优势扩大</li>
+<li>真机 Panda 零样本语言条件操作；16-DoF Allegro 手纯 RGB 灵巧方块重定向</li>
+</ol>
+</div>
+</div>
+
+<div class="panel" id="panel-arch">
+<div class="section">
+<h2>两阶段：规划器 + 翻译器</h2>
+<p>VERA = <b>Action-free 视频世界模型(规划器)</b> + <b>Jacobian IDM(翻译器)</b>。二者独立训练：</p>
+<pre><code>[观测历史 o≤t + 文本指令 g]
+        │
+        ▼
+┌─────────────────────────┐
+│ 视频世界模型(规划器)      │  Wan-14B, Diffusion Forcing
+│ Action-Free!            │  输入 N=6 context帧, 输出 M=4 future帧
+│ 本体无关, 训一次         │  只 commit K=1 前缀
+└──────────┬──────────────┘
+           │ 梦到的未来帧 ô_{t+1..t+K}
+           ▼
+┌─────────────────────────┐
+│ 光流估计器(现成)         │  RAFT / AllTracker
+└──────────┬──────────────┘
+           │ dense flow v_t(p) ∈ R^{H×W×2}
+           ▼
+┌─────────────────────────┐
+│ Jacobian IDM(翻译器)     │  VGGT / DINOv2+DPT
+│ 本体特异, 每机器人训一个  │  输出 dense per-pixel Jacobian
+│ δa = J†·v (正则化伪逆)   │
+└──────────┬──────────────┘
+           │ 动作块 â_{t:t+K}
+           ▼
+   执行 → 拿新观测 → 重新查询规划器(闭环 receding-horizon)</code></pre>
+</div>
+<div class="section">
+<h2>为什么要解耦？</h2>
+<div class="key">
+① <b>视频规划器保持本体无关</b>——它只"想象世界应该变成什么样"，不关心是哪个机器人。<br>
+② <b>不同视频模型可随意替换</b>而无需重训 IDM。<br>
+③ <b>IDM 可用容易获得的自玩(self-play)数据独立训练</b>——不需要昂贵的专家演示。<br>
+一个视频规划器，配多个 IDM，就能覆盖多种机器人本体。
+</div>
+</div>
+<div class="section">
+<h2>视频规划器细节</h2>
+<ul>
+<li>骨干 Wan-14B，用 LVP(Large Video Planner) checkpoint 初始化</li>
+<li>训练目标 Diffusion Forcing，<b>只预测未来帧，不碰 action</b></li>
+<li>机器人后训练：在 DROID 39,816 episodes 上做 video-to-video 微调</li>
+<li>多视角：多相机拼成单张宽图输入 tokenizer</li>
+<li>N=6 context latent 帧，M=4 预测帧，K=1 committed prefix，40 步 UniPC 采样</li>
+</ul>
+</div>
+</div>
+
+
+<div class="panel" id="panel-jidm">
+<div class="section">
+<h2>核心思想：图像空间的雅可比场</h2>
+<p>把经典机器人学的雅可比概念推广到图像空间——学习一个 <b>dense per-pixel Jacobian field</b>，表达"动作微增量如何驱动每个像素运动"。</p>
+<p>给定图像 o，image-conditioned transformer J 对每个像素 p 输出一个矩阵，满足线性化关系：</p>
+<div class="eq">δp = J(p, o) · δa</div>
+<p>其中 δa∈R^n 是动作增量，δp 是该像素的运动，J(p,o)∈R^(2×n)。</p>
+</div>
+<div class="section">
+<h2>训练目标(前向+逆向联合损失)</h2>
+<div class="eq">L = Σ_p ρ( J(p,o)·δa − v(p) ) + w_a · Σ_p ‖ δa − J†·v(p) ‖²</div>
+<ul>
+<li><b>前向项</b>：用雅可比×动作去预测像素流，对齐真实光流 v(p)</li>
+<li><b>逆向项</b>：用伪逆从光流重建动作，对齐真实动作(w_a=0.3)</li>
+<li>ρ(x)=√(x²+ε²) 是 Charbonnier loss(鲁棒 L1)</li>
+</ul>
+</div>
+<div class="section">
+<h2>推理：从光流反解动作(正则化伪逆)</h2>
+<div class="eq">δâ = argmin_δa Σ_p ‖ J(p,ô)·δa − v(p) ‖² + λ‖δa‖²</div>
+<p>即对所有像素的雅可比方程做 ridge 正则最小二乘，闭式解：</p>
+<div class="eq">δâ = (JᵀJ + λI)⁻¹ Jᵀ v</div>
+<p>本质是把"所有像素怎么动"这海量约束，最小二乘地压回到低维动作 δa 上。</p>
+</div>
+<div class="section">
+<h2>为什么 J-IDM 比 Direct-IDM 好</h2>
+<div class="key">Direct-IDM 直接学"图像→动作"的黑箱映射，高维动作(如 16-DoF 灵巧手)下需要海量数据。J-IDM 把映射<b>结构化为局部线性的雅可比</b>——雅可比是局部性质、对任何运动方向都覆盖，所以：① 高 DoF 下数据效率约 2× Direct-IDM；② 随 DoF 增长优势扩大；③ 是唯一在 DoF 增长时保持 faithful reconstruction 的模型。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-ibvs">
+<div class="section">
+<h2>VERA ≈ 神经版、dense-flow 版的 IBVS</h2>
+<p>VERA 的数学形式与经典的 <b>基于图像的视觉伺服 (IBVS)</b> 高度相似：</p>
+<table>
+<tr><th></th><th>经典 IBVS</th><th>VERA</th></tr>
+<tr><td>误差</td><td>手工特征误差 e = s* − s</td><td>dense optical flow v(p) = Flow(o_t, ô_{t+1})</td></tr>
+<tr><td>雅可比</td><td>解析图像雅可比 / 交互矩阵 L</td><td>学习的 dense per-pixel 雅可比场 J(p,o)</td></tr>
+<tr><td>求解</td><td>相机速度 v = L† e</td><td>动作 δa = J† v (ridge 正则)</td></tr>
+<tr><td>目标来源</td><td>人工给定目标特征 s*</td><td>视频生成模型"想象"出的未来画面</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>三个关键区别</h2>
+<ol>
+<li>VERA 的"误差"不是手工设计的特征误差，而是<b>dense 光流</b></li>
+<li>VERA 的雅可比不是解析模型，而是用机器人 self-play 数据<b>学出来的</b></li>
+<li>VERA 的目标不是人工给的，而是<b>视频生成模型想象出来的下一步视觉状态</b></li>
+</ol>
+<div class="key">一句话：VERA 保留了 IBVS "视觉误差 → 雅可比伪逆 → 动作"的核心思想，但把<b>目标生成和雅可比都学习化了</b>。</div>
+</div>
+<div class="section">
+<h2>VERA 不是 action-conditioned 世界模型</h2>
+<div class="note">注意区分两种世界模型思路：<br>
+• <b>Action-conditioned</b>(ContactWorld/DynaGuide/VTWM)："如果我执行动作 a，会发生什么" → 预测未来 → 评价动作。<br>
+• <b>VERA</b>："世界应该变成什么样"(想象目标未来) → 再用 J-IDM 反解"我该怎么动"。<br>
+VERA 先想目标、再反解动作，方向相反。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-exp">
+<div class="section">
+<h2>仿真结果</h2>
+<table>
+<tr><th>Model</th><th>Allegro-Sim (16-DoF)</th><th>Panda-Sim (7-DoF)</th><th>PushT (2-DoF)</th></tr>
+<tr><td>UniPi*</td><td>0.0</td><td>0.0</td><td>74.4</td></tr>
+<tr><td><b>J-IDM (VERA)</b></td><td class="hl">70.0</td><td class="hl">94.0</td><td class="hl">92.5</td></tr>
+</table>
+<p>(成功率 %) UniPi 在高 DoF 完全失败，VERA 稳定完成。</p>
+</div>
+<div class="section">
+<h2>真机对比 (vs π0.5, DreamZero)</h2>
+<table>
+<tr><th>任务类型</th><th>VERA</th><th>DreamZero</th><th>π0.5</th></tr>
+<tr><td>Push/Pick 基础</td><td>60%</td><td class="hl">90%</td><td>30%</td></tr>
+<tr><td>遮挡(隐藏按钮)</td><td class="hl">80%</td><td>0%</td><td>0%</td></tr>
+<tr><td>基于位置</td><td class="hl">60%</td><td>0%</td><td>0%</td></tr>
+</table>
+<div class="note"><b>关键发现</b>：基础任务 DreamZero>VERA>π0.5，但 VERA 的失败源于 video-to-action 翻译不精确，<b>而非视觉规划失败</b>。挑战性推理任务上 VERA >> 其它(都 0%)，证明解耦架构保留了视频模型的推理泛化能力。</div>
+</div>
+<div class="section">
+<h2>视频模型初始化消融</h2>
+<table>
+<tr><th>初始化</th><th>Val MSE ↓</th></tr>
+<tr><td>Random(14B)</td><td>0.40</td></tr>
+<tr><td>Wan-14B 预训练</td><td>0.13</td></tr>
+<tr><td>LVP-14B warm-start</td><td class="hl">0.10</td></tr>
+</table>
+</div>
+</div>
+
+<div class="panel" id="panel-takeaway">
+<div class="section">
+<h2>优点</h2>
+<ol>
+<li>解耦优雅：一个视频规划器 + 多个 IDM，视频模型可换、IDM 用自玩数据独立训</li>
+<li>J-IDM 数据高效且能扩展到高维动作(16-DoF 灵巧手)</li>
+<li>保留视频模型推理能力：挑战性推理任务上远超端到端 VLA</li>
+<li>零样本语言条件操作 + 纯 RGB 灵巧手控制</li>
+</ol>
+</div>
+<div class="section">
+<h2>局限</h2>
+<ul>
+<li>仍需机器人特定视频做规划器后训练；J-IDM 需该本体 self-play 数据(<b>换机器人要重训 IDM</b>)</li>
+<li>依赖现成光流估计器，其质量直接决定 J-IDM 性能</li>
+<li><b>无法从纯 RGB 推理力控</b>(force-based control)</li>
+<li>预测帧像素运动很小时，动作恢复精度下降</li>
+<li>14B 模型 40 步去噪 + 光流 + 伪逆，推理延迟高，实时性堪忧</li>
+<li>基础任务不如 DreamZero(60% vs 90%)，翻译保真度是瓶颈</li>
+</ul>
+</div>
+<div class="section">
+<h2>可借鉴 / 差异化空间</h2>
+<div class="key">
+<b>可借鉴</b>：把"视觉变化→雅可比伪逆→动作"这套 IBVS 思想神经化、dense 化，用于任何"目标图/未来帧→动作"的转换。<br><br>
+<b>VERA 已占的地盘</b>："图像误差→动作映射"本身已被 VERA 占得很实，不建议 claim 为新点。<br><br>
+<b>差异化空间</b>：① 不替代 VLA 而是<b>修正</b>已有 VLA；② 不用 14B 视频模型而用<b>轻量目标/误差信号</b>；③ 加<b>触觉/力</b>解决 VERA 明确不擅长的 contact-rich / force control；④ 把 IBVS 思想从视觉像素层转到 tactile/contact latent 或 VLA 内部表示层。
+</div>
+</div>
+<div class="section">
+<h2>一句话总结</h2>
+<p class="hl">VERA = action-free 视频世界模型(梦想未来) + Jacobian IDM(用学习的图像雅可比场把光流反解成动作)，是神经版、视频驱动的 IBVS，走"解耦规划+忠实翻译"路线实现零样本跨本体控制。</p>
+</div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+</script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>世界模型全景 — 机器人操作方向</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1120px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent2),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.back{display:inline-block;margin:12px 0;padding:7px 15px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--accent);text-decoration:none;font-size:0.85em}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 15px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.85em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.78em;line-height:1.5}
+code{color:var(--green)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--border);font-size:0.83em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>世界模型全景 — 机器人操作方向</h1>
+<p class="sub">显式 vs 隐式预测 · 视觉-触觉矩阵 · 开环/闭环 · MPC+CEM 规划 · 基于 30+ 篇论文分析</p>
+<a class="back" href="../../index.html">← 返回 Study Hub</a>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="intro">什么是世界模型</div>
+<div class="tab" data-tab="taxonomy">三大分类</div>
+<div class="tab" data-tab="explicit">显式 vs 隐式</div>
+<div class="tab" data-tab="vt">视触觉矩阵</div>
+<div class="tab" data-tab="loop">开环 vs 闭环</div>
+<div class="tab" data-tab="planning">MPC+CEM 规划</div>
+<div class="tab" data-tab="summary">选题结论</div>
+</div>
+
+
+<div class="panel active" id="panel-intro">
+<div class="section">
+<h2>什么是"世界模型"</h2>
+<p>世界模型(World Model)是一个能<b>预测"未来会怎样"</b>的模型。在机器人里它回答的核心问题通常是两类之一：</p>
+<ul>
+<li><b>Action-conditioned(动作条件)</b>："如果我执行动作 a，世界(图像/触觉/状态)会变成什么样？" → 用来评价/搜索动作</li>
+<li><b>Action-free(目标想象)</b>："这个任务下，未来应该变成什么样？" → 再用别的模块反解动作(如 VERA)</li>
+</ul>
+</div>
+<div class="section">
+<h2>各类数据/模型在 VLA 生态里的分工</h2>
+<div class="key">VQA/VL 数据负责"看懂说清"，VLA 演示负责"会动手"，人类视频负责"扩多样性"，仿真负责"便宜扩规模"，触觉/力负责"接触动力学"，失败数据负责"知错能改"——<b>而世界模型负责"预测未来、想象后果"</b>，是连接感知与规划的桥梁。</div>
+</div>
+<div class="section">
+<h2>关键认知：别被"latent"骗了</h2>
+<div class="warn"><b>"在 latent 里预测" ≠ "latent 空间预测"</b>。很多视频扩散世界模型在 VAE latent 里去噪，但它们的<b>目标是生成/预测未来视频</b>(可解码回像素)，所以应归为"显式可解码预测"，而非"latent 空间预测"。判定标准看<b>最终训练目标和评估对象是否可解码成未来观测</b>。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-taxonomy">
+<div class="section">
+<h2>三大分类</h2>
+<table>
+<tr><th>类别</th><th>预测什么</th><th>典型</th></tr>
+<tr><td><b>① 显式可解码预测</b></td><td>直接预测可解码的未来观测(图像/视频/触觉图/力/音频)。即使在 VAE/video-token latent 里去噪，目标仍是可解码的未来观测</td><td>Cosmos, DreamZero, DreamTac, VTAM, UniPi, LVP</td></tr>
+<tr><td><b>② latent/embedding 预测</b></td><td>预测紧凑状态(DINO/V-JEPA/触觉encoder latent/TD-MPC state)，控制/规划直接在 latent 空间算代价，不还原像素</td><td>V-JEPA2, DynaGuide, ContactWorld, FOWM, DDP-WM</td></tr>
+<tr><td><b>③ 混合 / 边界</b></td><td>训练时带可解码未来预测、推理时主要出动作；或是 benchmark/survey</td><td>Fast-WAM, DeFI, LAPA, World-VLA-Loop</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>被引频次(基于全库 195 篇扫描)</h2>
+<table>
+<tr><th>#</th><th>数据集/平台</th><th>被引</th><th>类型</th></tr>
+<tr><td>1</td><td>DROID / Isaac 系列</td><td>31</td><td>真机数据 / 仿真器</td></tr>
+<tr><td>3</td><td>LIBERO(含变体)</td><td>29</td><td>仿真 benchmark</td></tr>
+<tr><td>4</td><td>Open X-Embodiment</td><td>21</td><td>跨本体预训练</td></tr>
+<tr><td>5</td><td>BridgeData V2</td><td>18</td><td>真机预训练</td></tr>
+<tr><td>6</td><td>RoboCasa(含365)</td><td>15</td><td>仿真 benchmark</td></tr>
+<tr><td>7</td><td>CALVIN</td><td>13</td><td>仿真(ABC→D 为 OOD)</td></tr>
+<tr><td>8</td><td>SimplerEnv</td><td>12</td><td>仿真评测(真机对标)</td></tr>
+</table>
+</div>
+</div>
+
+
+<div class="panel" id="panel-explicit">
+<div class="section">
+<h2>① 显式可解码预测</h2>
+<h4>纯视觉/视频世界模型</h4>
+<p>共同点：预测目标常写成 latent video token / VAE latent，但最终语义是"未来画面/视频"。</p>
+<table>
+<tr><th>方法</th><th>年份</th><th>预测目标 / 用途</th></tr>
+<tr><td>UniPi</td><td>2023</td><td>文本条件未来视频 → inverse dynamics 转动作</td></tr>
+<tr><td>Genie</td><td>2024</td><td>离散视频token+latent action，交互式下一帧(可交互生成环境)</td></tr>
+<tr><td>Cosmos</td><td>2025</td><td>未来视频/动作条件下一帧，world foundation model</td></tr>
+<tr><td>LVP</td><td>2025</td><td>规划用未来视频(video-as-plan)，再接 action model</td></tr>
+<tr><td>DreamVLA</td><td>2025</td><td>生成式未来视觉/动作表征，增强 VLA</td></tr>
+<tr><td>DreamZero</td><td>2026</td><td>未来视频latent+动作(world-action model)，零/少样本策略</td></tr>
+<tr><td>tau0-WM</td><td>2026</td><td>统一 video-action，动作条件视频模拟/规划</td></tr>
+<tr><td>Cosmos3</td><td>2026</td><td>图像/视频/音频/动作多模态未来观测(omni-modal)</td></tr>
+<tr><td>CosmosPolicy</td><td>2026</td><td>未来视频帧+动作+未来状态/价值 latent frame</td></tr>
+<tr><td>RISE-WM / DreamDojo / EgoWM / GigaWorld-0</td><td>2026</td><td>动作条件未来视频，作想象环境/策略基座</td></tr>
+</table>
+<h4>视触觉可解码世界模型(对触觉方向最相关)</h4>
+<table>
+<tr><th>方法</th><th>预测目标</th><th>VAE 类型</th></tr>
+<tr><td><b>OmniVTA</b></td><td>未来视觉序列 + TacVAE 触觉 latent，用于接触概率+门控融合</td><td>TacVAE</td></tr>
+<tr><td><b>DreamTac</b></td><td>统一预测未来视觉/触觉 latent/动作，可 VAE 解码可视化</td><td>Vision-Tactile VAE</td></tr>
+<tr><td><b>VTAM</b></td><td>未来多视角视觉帧 + GelSight 触觉帧/latent，flow matching</td><td>Video VAE</td></tr>
+<tr><td>MMVP</td><td>早期，未来 RGB + haptic/audio/vibration 多模态信号</td><td>—</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>② latent / embedding 空间预测</h2>
+<p>核心不是"生成给人看的画面"，而是学一个<b>服务控制的状态动力学</b>；预测结果是 feature/latent，规划代价也在这个空间算。</p>
+<h4>视觉 latent/feature dynamics</h4>
+<table>
+<tr><th>方法</th><th>预测</th><th>控制</th></tr>
+<tr><td>FOWM</td><td>下一 latent state z(TD-MPC 风格)</td><td>MPC/TD learning + online fine-tune</td></tr>
+<tr><td>V-JEPA2</td><td>未来 V-JEPA embedding</td><td>CEM/MPC 在 feature space 规划到 goal</td></tr>
+<tr><td>DynaGuide</td><td>未来 DINOv2 patch feature</td><td>gradient guidance / feature-space 规划</td></tr>
+<tr><td>DDP-WM</td><td>下一 DINO feature(稀疏前景+低秩背景)</td><td>MPC cost in feature space</td></tr>
+</table>
+<h4>触觉/接触 latent dynamics</h4>
+<table>
+<tr><th>方法</th><th>预测</th><th>控制</th></tr>
+<tr><td>MvM</td><td>触觉膜形变 latent、wrench/pose</td><td>MPPI/MPC</td></tr>
+<tr><td>TS-NVAE</td><td>NewtonianVAE 物理对齐 latent</td><td>latent-space 比例控制</td></tr>
+<tr><td>ContactWorld</td><td>下一 multimodal latent(JEPA)</td><td>CEM/MPC 接触规划</td></tr>
+<tr><td>VTWM</td><td>视觉 token + Sparsh-X 触觉 embedding 的未来状态</td><td>CEM 有限时域规划</td></tr>
+<tr><td>DreamTacVLA / TacForeSight</td><td>未来触觉 latent(策略前瞻)</td><td>注入策略精炼动作</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>③ 混合 / 边界</h2>
+<ul>
+<li><b>Fast-WAM</b>：训练时世界模型化，推理时直接出动作</li>
+<li><b>DeFI</b>：GFDM 未来视频 + GIDM latent action，混合</li>
+<li><b>LAPA</b>：主体是 latent action pretraining，下一帧重建是副产物</li>
+<li><b>WorldArena / WorldGymnast / WM-ManipSurvey</b>：benchmark/综述</li>
+</ul>
+</div>
+</div>
+
+<div class="panel" id="panel-vt">
+<div class="section">
+<h2>视觉-触觉预测四象限</h2>
+<p>口径：<b>强显式</b>=可解码为图像/视频/触觉图/形变场/haptic；<b>弱显式</b>=模态专属 token/embedding 预测目标但控制在 latent 空间；<b>隐式</b>=只进共享 latent，不单独输出该模态未来观测；<b>N/A</b>=不涉及该模态。</p>
+</div>
+<div class="section">
+<h3>7.1 同时显式预测视觉和触觉</h3>
+<table>
+<tr><th>方法</th><th>视觉</th><th>触觉</th></tr>
+<tr><td>MMVP</td><td>强显式:未来RGB</td><td>强显式:haptic/audio/vibration</td></tr>
+<tr><td><b>OmniVTA</b></td><td>强显式:未来视觉序列</td><td>强显式:TacVAE 未来触觉</td></tr>
+<tr><td><b>DreamTac</b></td><td>强显式:未来视觉latent(可视化)</td><td>强显式:未来触觉latent(可视化)</td></tr>
+<tr><td><b>VTAM</b></td><td>强显式:未来多视角视觉帧</td><td>强显式:未来GelSight触觉帧</td></tr>
+<tr><td>VTWM</td><td>弱显式:未来视觉state/token</td><td>弱显式:Sparsh-X触觉embedding</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>7.3 只显式预测触觉，视觉隐式(触觉前瞻策略)</h3>
+<table>
+<tr><th>方法</th><th>视觉</th><th>触觉</th></tr>
+<tr><td>DreamTacVLA</td><td>隐式(进VLA hidden)</td><td>弱显式:未来触觉embedding</td></tr>
+<tr><td>TacForeSight</td><td>隐式(DINOv2编码)</td><td>弱显式:未来触觉latent</td></tr>
+<tr><td>ViTacFormer</td><td>隐式:视觉token融合</td><td>弱显式:自回归未来tactile token</td></tr>
+<tr><td>PACE</td><td>隐式:进ACT策略</td><td>弱/结构显式:未来触觉/contact delta</td></tr>
+<tr><td>MvM</td><td>N/A</td><td>弱显式:触觉膜形变latent+wrench/pose</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>7.4 视觉触觉皆隐式</h3>
+<table>
+<tr><th>方法</th><th>说明</th></tr>
+<tr><td>ContactWorld</td><td>JEPA 式隐空间，只预测下一 multimodal latent，CEM/MPC 在 latent 规划</td></tr>
+<tr><td>TS-NVAE</td><td>NewtonianVAE 控制 latent，不生成未来视觉/触觉</td></tr>
+</table>
+<div class="note">纯视觉世界模型(UniPi/Genie/Cosmos/LVP/DreamVLA/DreamZero...)显式预测视觉但<b>不涉及触觉</b>，应标"触觉 N/A"，而非"隐式预测触觉"。</div>
+</div>
+</div>
+
+
+<div class="panel" id="panel-loop">
+<div class="section">
+<h2>开环 vs 闭环</h2>
+<div class="note">判定不是"有没有真机 rollout"，而是：<b>世界模型的预测结果是否进入执行时/训练时的反馈决策环</b>。Open-loop=只做预测/训练辅助/可视化；Closed-loop=预测被用于 MPC/CEM/best-of-N/RL想象/动作精炼/每轮用真实观测替换预测继续决策。</div>
+</div>
+<div class="section">
+<h3>Open-loop(预测不反复影响动作选择)</h3>
+<p>MMVP, UniPi, Cosmos, LVP, DreamVLA, GigaWorld-0, EgoWM, <b>DreamTac, VTAM</b>(未来触觉主要是辅助输出/可视化), <b>PACE</b>(pred head 只训练时用,推理移除), Fast-WAM, DeFI, LAPA, Cosmos3</p>
+</div>
+<div class="section">
+<h3>Closed-loop(预测参与动作选择)</h3>
+<table>
+<tr><th>方法</th><th>闭环方式</th></tr>
+<tr><td>MvM / DDP-WM / FOWM</td><td>latent dynamics + MPPI/MPC/TD-MPC</td></tr>
+<tr><td>V-JEPA2</td><td>CEM/MPC 在 feature space 规划</td></tr>
+<tr><td>DynaGuide</td><td>推理时 gradient/action guidance</td></tr>
+<tr><td><b>ContactWorld</b></td><td>JEPA latent + CEM/receding-horizon MPC 接触规划</td></tr>
+<tr><td>OmniVTA</td><td>预测接触概率调节融合 + RLTC 60Hz 触觉闭环</td></tr>
+<tr><td>DreamTacVLA</td><td>Think-Dream-Act:草案动作→预测未来触觉→精炼动作</td></tr>
+<tr><td>TacForeSight / ViTacFormer</td><td>预测未来触觉 latent/token 反馈进动作生成</td></tr>
+<tr><td>RISE-WM / World-VLA-Loop</td><td>世界模型作想象环境,策略在rollout中自改进</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>Mixed / 边界</h3>
+<table>
+<tr><th>方法</th><th>为什么是边界</th></tr>
+<tr><td>VTWM</td><td>用 CEM 有限时域规划,但 best sequence 在真机<b>open-loop trajectory chunks</b>执行,非高频闭环</td></tr>
+<tr><td>DreamZero</td><td>异步闭环(执行chunk后用真实观测替换预测),但不是 MPC 搜索</td></tr>
+<tr><td>tau0-WM</td><td>可直接出动作,ACVS 模式评估候选rollout再修正(test-time computation)</td></tr>
+<tr><td>CosmosPolicy</td><td>直接策略 + model-based planning(N=5候选+价值)</td></tr>
+<tr><td>DreamDojo</td><td>候选动作→预测未来视频→外部value model重排(best-of-N,非CEM/MPC)</td></tr>
+</table>
+</div>
+</div>
+
+<div class="panel" id="panel-planning">
+<div class="section">
+<h2>MPC + CEM 规划框架</h2>
+<div class="note">严格口径：① 有显式世界模型/动力学做 rollout；② 短 horizon 采样候选动作序列；③ CEM 作优化器(采样→rollout→评分→top-K elite→更新分布)；④ <b>CEM planning ≠ MPC</b>——只有每次只执行最优序列第一步/短前缀并用新观测持续重规划,才算 receding-horizon MPC。</div>
+</div>
+<div class="section">
+<h3>严格 MPC + CEM(闭环)</h3>
+<table>
+<tr><th>模型</th><th>CEM 采样对象</th><th>用法</th></tr>
+<tr><td><b>ContactWorld</b></td><td>未来 H 步动作序列(horizon=6, candidates 64-100, topk=8, iter=4)</td><td>编码当前观测→CEM采样→latent rollout→目标latent距离打分→只执行第一步→重规划</td></tr>
+<tr><td><b>V-JEPA2</b></td><td>动作候选(80 samples × 10 refine)</td><td>feature space CEM 搜索,使预测 embedding 接近 goal embedding</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>CEM 有限时域规划(但非严格 MPC)</h3>
+<table>
+<tr><th>模型</th><th>说明</th></tr>
+<tr><td>VTWM</td><td>H=2秒,36 particles,10 iter;但 best sequence <b>open-loop 执行</b>,论文明说 CEM 昂贵导致 open-loop trajectory chunks</td></tr>
+<tr><td>MultimodalPretraining</td><td>N=120,8-step horizon,LPIPS 目标图像代价;未说明 receding-horizon replanning</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>易混淆:不是 CEM+MPC 的相近模型</h3>
+<table>
+<tr><th>模型</th><th>实际是什么</th></tr>
+<tr><td>MvM / DDP-WM</td><td>MPPI/MPC,不是 CEM</td></tr>
+<tr><td>FOWM</td><td>TD-MPC 风格,无 CEM elite 更新证据</td></tr>
+<tr><td>DynaGuide</td><td>gradient/action guidance,不是 CEM 规划器</td></tr>
+<tr><td>CosmosPolicy</td><td>N=5候选+价值+majority voting,不是 CEM elite 重拟合</td></tr>
+<tr><td>DreamDojo</td><td>best-of-N / value reranking,不是 CEM</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>规划范式总表</h2>
+<table>
+<tr><th>范式</th><th>代表</th><th>CEM</th><th>MPC</th></tr>
+<tr><td>CEM + receding-horizon MPC</td><td>ContactWorld, V-JEPA2</td><td>✓</td><td>✓</td></tr>
+<tr><td>CEM 有限时域/开环chunk</td><td>VTWM, MultimodalPretraining</td><td>✓</td><td>✗</td></tr>
+<tr><td>MPPI/MPC/TD-MPC latent</td><td>MvM, DDP-WM, FOWM</td><td>✗</td><td>✓</td></tr>
+<tr><td>Best-of-N / value reranking</td><td>DreamDojo, CosmosPolicy, tau0-WM</td><td>✗</td><td>✗</td></tr>
+<tr><td>Gradient/action guidance</td><td>DynaGuide</td><td>✗</td><td>✗</td></tr>
+<tr><td>策略内部前瞻/动作精炼</td><td>DreamTacVLA, TacForeSight, ViTacFormer, PACE</td><td>✗</td><td>✗</td></tr>
+<tr><td>Video-as-plan / inverse dynamics</td><td>UniPi, LVP, DeFI, <b>VERA</b></td><td>✗</td><td>✗</td></tr>
+<tr><td>想象环境/训练闭环</td><td>RISE-WM, World-VLA-Loop</td><td>✗</td><td>训练侧</td></tr>
+</table>
+</div>
+</div>
+
+<div class="panel" id="panel-summary">
+<div class="section">
+<h2>选题结论(面向触觉/接触方向)</h2>
+<ol>
+<li>做<b>可发表的视触觉世界模型</b> → 对标 OmniVTA, DreamTac, VTAM, VTWM, ContactWorld, DreamTacVLA, TacForeSight</li>
+<li>强调<b>可解释的未来触觉响应</b> → 显式可解码类更有说服力(DreamTac/VTAM/OmniVTA 能展示未来触觉图/接触区/力变化)</li>
+<li>强调<b>控制效率与严格闭环 MPC</b> → 对标 ContactWorld, V-JEPA2, DDP-WM, FOWM, MvM；VTWM 作"CEM 有限时域/开环chunk"邻近对标</li>
+<li>双臂+灵巧手平台建议<b>不要二选一</b>：底层控制用 latent tactile foresight，论文展示保留可解码触觉/视觉预测分支</li>
+</ol>
+</div>
+<div class="section">
+<h2>VERA 在其中的位置</h2>
+<div class="key">VERA 属于 <b>Video-as-plan / inverse dynamics</b> 范式(和 UniPi 同类)，但不是 action-conditioned 世界模型——它先"想象目标未来"，再用 J-IDM 反解动作，方向与 ContactWorld/DynaGuide 这类"给动作预测后果"相反。详见 <a href="vera.html" style="color:var(--accent)">VERA 专页</a>。</div>
+</div>
+<div class="section">
+<h2>最容易混淆的几点(避坑)</h2>
+<ul>
+<li><b>"latent 里去噪" ≠ "latent 空间预测"</b>：看最终目标是否可解码成未来观测</li>
+<li><b>CEM planning ≠ MPC</b>：要看是否每步只执行第一步 + 重规划</li>
+<li><b>能预测未来 ≠ 闭环控制</b>：预测不进决策环就是 open-loop</li>
+<li><b>DreamTac/VTAM/PACE 偏 open-loop/训练辅助</b>，不是在线 MPC 搜索</li>
+<li>纯视觉世界模型对触觉是 <b>N/A</b>，不是"隐式预测触觉"</li>
+</ul>
+</div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+</script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>π0.7 — 可操控的通用机器人基础模型</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.back{display:inline-block;margin:12px 0;padding:7px 15px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--accent);text-decoration:none;font-size:0.85em}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 16px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.88em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.8em;line-height:1.5}
+code{color:var(--green)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-family:'Cambria Math',serif;font-size:1.02em;margin:10px 0;color:var(--text)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:0.86em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>π0.7 — 可操控的通用机器人基础模型</h1>
+<p class="sub">a Steerable Generalist Robotic Foundation Model with Emergent Capabilities · Physical Intelligence 2026</p>
+<a class="back" href="../../index.html">← 返回 Study Hub</a>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="overview">速览</div>
+<div class="tab" data-tab="motivation">动机</div>
+<div class="tab" data-tab="method">方法与架构</div>
+<div class="tab" data-tab="context">多模态上下文</div>
+<div class="tab" data-tab="exp">实验</div>
+<div class="tab" data-tab="takeaway">评价与启发</div>
+</div>
+
+
+<div class="panel active" id="panel-overview">
+<div class="section">
+<h2>一句话</h2>
+<p><b>用丰富的"提示词"(上下文)让机器人基础模型开箱即用地泛化到新任务。</b> π0.7 的创新不在网络结构，而在一套"多模态上下文条件化"训练方法——给每条数据不仅标注"做什么"，还标注"怎么做/做得好不好"，让模型能从极其多样(含次优、失败、跨本体、非机器人)的数据里学习，并在推理时通过选择性提示精确控制行为。</p>
+</div>
+<div class="section">
+<h2>速览卡片</h2>
+<table>
+<tr><th>项</th><th>内容</th></tr>
+<tr><td>团队</td><td>Physical Intelligence (Bo Ai 等，Sergey Levine/Chelsea Finn 在列)</td></tr>
+<tr><td>问题</td><td>现有 VLA 无法组合技能泛化到新任务，缺开箱即用灵巧操作</td></tr>
+<tr><td>基座</td><td>基于 π0.6-MEM 改造；VLM=Gemma3 4B；动作专家 860M；世界模型=BAGEL 14B</td></tr>
+<tr><td>总参数</td><td>~5B (4B VLM + 860M 动作专家 + 400M ViT)</td></tr>
+<tr><td>核心手段</td><td>子任务指令 + 子目标图像 + episode 元数据 + 控制模式，四类上下文随机丢弃训练</td></tr>
+<tr><td>关键结果</td><td>灵巧任务匹配甚至超越 RL 专家吞吐量；零样本跨本体折 T 恤 80% (≈人类首次 80.6%)；14 个未见环境指令跟随显著超 π0.5/π0.6</td></tr>
+<tr><td>实验</td><td>纯真机(移动双臂/BiPi/UR5e/单臂)，无仿真，无触觉</td></tr>
+<tr><td>开源</td><td>否</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>它在 π 系列中的位置</h2>
+<pre><code>π0     Flow Matching 动作专家 (PaliGemma)
+π0-FAST 自回归离散动作 token
+π0.5   加语言层级、开放世界泛化
+π0.6   VLA + RL 后训练 (π0.6* 是 RL 专家)
+π0.6-MEM 加 MEM 多尺度记忆(视频历史编码)
+  │
+  ▼
+π0.7   ★ 多模态上下文条件化 + BAGEL世界模型子目标 + 从RL专家蒸馏
+       → 开箱即用泛化 / 跨本体 / 组合泛化</code></pre>
+</div>
+</div>
+
+<div class="panel" id="panel-motivation">
+<div class="section">
+<h2>为什么做 π0.7</h2>
+<p><b>灵感来自语言模型的组合泛化</b>：LLM 不只是记事实，还能把知识以新方式组合来解决新问题。但机器人 VLA 在"以新方式组合技能泛化到新任务"上仍很弱。作者受图像/视频生成领域"提示词扩展(prompt expansion)"启发，认为<b>给训练数据更丰富的上下文条件</b>，就能让机器人像语言模型那样组合泛化。</p>
+</div>
+<div class="section">
+<h2>现有 VLA 的痛点</h2>
+<ul>
+<li>此前 VLA(π0/π0.5/OpenVLA/RT-2)只用<b>简短文本描述</b>做条件，无法区分同一任务的不同执行策略和质量</li>
+<li>朴素地混用多样化数据会让模型"平均化"不同模式 → 次优结果</li>
+<li>最强性能通常要<b>任务特定微调或 RL 后训练</b>，失去通用性</li>
+<li>跨本体迁移困难，尤其形态差异大时</li>
+</ul>
+</div>
+<div class="section">
+<h2>核心假设</h2>
+<div class="key">如果为每条训练数据提供足够详细的上下文(不仅"做什么"，还"怎么做")，模型就能从多样化、混合质量的数据中有效学习，并在测试时通过选择性提示实现精确行为控制和组合泛化。</div>
+</div>
+</div>
+
+
+<div class="panel" id="panel-method">
+<div class="section">
+<h2>整体架构数据流</h2>
+<pre><code>训练:
+4相机×6历史帧 [B,4,6,448,448,3]
+  │ MEM 视频编码器(时空可分离注意力,任意历史帧→固定token数)
+  ▼
+视觉 tokens ──┐
+语言指令 ℓ ───┤
+子任务指令 l̂ ─┤  各以 dropout 概率随机丢弃
+episode元数据 m┤  (速度/质量/错误)
+子目标图像 g ─┤  (25%样本含, 由BAGEL生成)
+控制模式 c ───┘  (joint / ee)
+  │
+  ▼
+┌────────────────────────────┐
+│ VLM Backbone (Gemma3 4B)   │ ← KI知识隔离:梯度不回传VLM
+│ 输出 context tokens         │   VLM用FAST token离散交叉熵监督
+└──────────┬─────────────────┘
+           │ cross-attention
+           ▼
+┌────────────────────────────┐
+│ Action Expert (860M)       │ Flow Matching + adaRMSNorm
+│ 50 action tokens, 5步去噪   │ CFG β∈{1.3,1.7,2.2}
+└──────────┬─────────────────┘
+           ▼
+Action chunk [B,50,D] (实际执行 15 或 25 步)
+
+世界模型(异步生成子目标):
+当前观测+任务 → BAGEL 14B(flow matching) → 子目标图像 (每4秒刷新)</code></pre>
+</div>
+<div class="section">
+<h2>关键组件</h2>
+<table>
+<tr><th>组件</th><th>规格</th><th>作用</th></tr>
+<tr><td>VLM 骨干</td><td>Gemma3 4B + 400M ViT</td><td>理解图像+语言+各类上下文，输出 context tokens</td></tr>
+<tr><td>MEM 视频编码器</td><td>时空可分离注意力</td><td>把任意数量历史帧压成固定 token 数(4视角×6帧, 1秒步长, 0.3概率整体丢弃)</td></tr>
+<tr><td>动作专家</td><td>860M Transformer</td><td>Flow Matching 预测 50 步连续动作，adaRMSNorm 注入时间步</td></tr>
+<tr><td>世界模型</td><td>BAGEL 14B</td><td>生成子目标图像，为策略提供视觉规划引导</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>知识隔离 (Knowledge Insulation, KI)</h2>
+<div class="key">动作专家可以 attend 到 VLM 的所有激活，但<b>梯度不回传到 VLM 骨干</b>。VLM 用 FAST token 的离散交叉熵损失单独监督。这样保住 VLM 的语言/视觉能力不被动作训练"冲垮"，同时动作专家仍能利用 VLM 的丰富表征。(继承自 π0.6-MEM)</div>
+</div>
+</div>
+
+<div class="panel" id="panel-context">
+<div class="section">
+<h2>核心创新：四类上下文条件</h2>
+<p>传统 VLA 的上下文只有语言指令 ℓ("清理厨房")。π0.7 大幅扩展为四个组件，训练时各以概率随机丢弃，推理时可灵活用任意子集：</p>
+<table>
+<tr><th>上下文</th><th>是什么</th><th>作用 / 来源</th></tr>
+<tr><td><b>子任务指令 l̂</b></td><td>中间层语义子任务，如"打开冰箱门"</td><td>继承 π0.5；推理时由高层策略自动生成，或人类实时"coaching"</td></tr>
+<tr><td><b>子目标图像 g</b></td><td>多视角的期望近未来场景图</td><td><b>本文核心架构创新</b>；由 BAGEL 世界模型生成；把动作预测变成"逆动力学"问题，加速训练</td></tr>
+<tr><td><b>episode 元数据 m</b></td><td>速度(500步区间离散)+质量(1-5人工评分)+错误标记</td><td>让模型区分同一任务的不同执行质量，从而<b>能利用次优/失败数据</b></td></tr>
+<tr><td><b>控制模式 c</b></td><td>joint(关节) / ee(末端执行器)</td><td>训练时学两种控制空间，推理按需选</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>为什么元数据这么关键</h2>
+<div class="note">朴素混用混合质量数据会让模型"平均化"好坏策略。加了 episode 元数据后：训练时保留所有数据(好的坏的都学，但打上标签)，<b>推理时提示"最高速度、最高质量、无错误"</b>，模型就只输出好的行为。这让 π0.7 能从 RL 专家(π0.6*)的 rollout 甚至失败数据里"蒸馏"知识 + 扩大状态分布多样性。消融显示：有元数据时数据越多性能越好；<b>没元数据时数据越多性能反而下降</b>。</div>
+</div>
+<div class="section">
+<h2>子目标图像：世界模型引导</h2>
+<p>子目标图像 g 由 BAGEL(14B 图像理解/编辑/生成模型)用标准流匹配损失训练生成。它比纯语言更能表达空间细节。推理时每 Δ=4 秒或语义意图变化时异步刷新；训练用真实未来帧 + 世界模型生成图的混合(25%样本含)。</p>
+<div class="key">加入子目标后，动作预测从"看指令想动作"变成"看指令+目标图想动作"——即<b>逆动力学问题</b>(已知起点和目标，求中间动作)，显著加速训练。</div>
+</div>
+<div class="section">
+<h2>语言 Coaching：教会新长任务</h2>
+<p>对从未见过的复杂长任务，人类可以用语言分步"指导"(coaching)：一步步告诉机器人子任务("现在打开空气炸锅""放入食物")。然后把这些 coaching 数据<b>蒸馏成自主高层策略</b>，下次就能自己生成子任务指令。这是 π0.7 组合泛化获取新技能的关键链路。</p>
+</div>
+</div>
+
+<div class="panel" id="panel-exp">
+<div class="section">
+<h2>实验设置</h2>
+<ul>
+<li><b>纯真机</b>，无仿真：移动双臂平台 / BiPi 静态双臂 / UR5e 双臂+Robotiq / 单臂 6DoF</li>
+<li>相机：前视+双腕部(移动平台加后视)；无触觉/力传感器</li>
+<li>推理：5 步去噪，CFG β∈{1.3,1.7,2.2}，448×448，动作块 50 步执行 15/25 步，RTC 处理延迟</li>
+</ul>
+</div>
+<div class="section">
+<h2>关键结果</h2>
+<table>
+<tr><th>能力</th><th>结果</th></tr>
+<tr><td>开箱即用灵巧性</td><td>折衣/制咖啡/组装盒子等匹配 RL 专家成功率，折衣和盒子组装<b>吞吐量超过专家</b></td></tr>
+<tr><td>指令跟随</td><td>14 个未见环境场景显著超 π0.5/π0.6；复杂参考指令也更好；能打破数据偏差执行反转任务</td></tr>
+<tr><td>跨本体迁移</td><td>折 T 恤从 BiPi 零样本迁移到 UR5e：85.6% 任务进度 / 80% 成功率，≈人类遥操作首次(90.9%/80.6%)</td></tr>
+<tr><td>组合泛化</td><td>开箱即用做新短任务(按压壶/舀米/擦拭/旋转)；通过 coaching 做新长任务(空气炸锅/烤面包机)</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>消融要点</h2>
+<ul>
+<li><b>去 episode 元数据</b> → 所有灵巧任务吞吐量显著下降；且数据越多性能反降</li>
+<li><b>去自主评估数据</b> → 性能明显下降</li>
+<li><b>去子目标图像</b> → 反转偏差任务和跨本体任务尤其受损</li>
+<li><b>去掉最多样化的 20% 数据</b> → 组合泛化显著下降</li>
+</ul>
+</div>
+</div>
+
+<div class="panel" id="panel-takeaway">
+<div class="section">
+<h2>优点</h2>
+<ol>
+<li>开箱即用能力强：单一通用模型匹配甚至超越专门微调的 RL 专家(前所未有)</li>
+<li>跨本体涌现迁移：零样本折衣匹配人类首次操作，自发适应目标机器人运动学</li>
+<li>组合泛化链路完整：短任务开箱即用 + 长任务 coaching 获取 + coaching 数据蒸馏为自主策略</li>
+<li>严格消融验证了每个设计动机</li>
+</ol>
+</div>
+<div class="section">
+<h2>局限</h2>
+<ul>
+<li>零样本泛化成功率 60-80%，明显低于分布内 90%+</li>
+<li>无仿真实验，无法与仿真基准公平对比</li>
+<li>元数据人工标注成本/一致性未讨论</li>
+<li>世界模型失败模式未分析；不开源；无触觉/力反馈</li>
+</ul>
+</div>
+<div class="section">
+<h2>可借鉴的思想</h2>
+<div class="key">
+<b>① Episode 元数据条件化</b>：给混合质量数据打"质量/错误"标签，让模型区分好坏执行，不必丢弃次优数据——对遥操作采集的参差数据很有用。<br><br>
+<b>② 世界模型子目标引导</b>：训练一个模型预测"期望的下一步状态图/信号"作为策略条件，比纯文本更能表达细节。<br><br>
+<b>③ 语言 coaching + 高层策略蒸馏</b>：先用语言(而非遥操作)教机器人任务流程，再蒸馏为自主策略，快速适应新任务。
+</div>
+</div>
+<div class="section">
+<h2>一句话总结</h2>
+<p class="hl">π0.7 = π0.6-MEM 架构 + 多模态上下文条件化(子任务/子目标/元数据/控制模式) + BAGEL 世界模型子目标 + 从 RL 专家蒸馏，用"丰富提示词"实现开箱即用的组合泛化与跨本体迁移。</p>
+</div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+</script>
+</body>
+</html>
