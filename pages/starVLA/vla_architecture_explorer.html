@@ -693,6 +693,77 @@ VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
   </div>
 
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">3.5 各 benchmark 的任务与难度分级详解</h3>
+    <p>光知道名字不够，下面拆开每个 benchmark：里面<b>具体是什么任务</b>、<b>怎么分套件/难度</b>、<b>easy/hard 到底差在哪</b>。</p>
+
+    <h4>① LIBERO — 4 个套件，各测一种泛化</h4>
+    <p>LIBERO 130 任务分成 4 个"套件(suite)"，每套 10 个任务 × 50 条演示。StarVLA 用一个模型同时训 4 套，每套评 500 次(10任务×50次)。<b>4 套不是难度分级，而是测不同能力维度</b>：</p>
+    <table>
+      <tr><th>套件</th><th>测什么泛化</th><th>任务举例</th></tr>
+      <tr><td><b>LIBERO-Spatial</b></td><td>空间关系理解：同样的物体，摆放位置/空间描述变化</td><td>"把碗放在盘子左边/右边"——物体相同，考空间词</td></tr>
+      <tr><td><b>LIBERO-Object</b></td><td>物体泛化：不同物体，相同任务结构</td><td>"拿起牛奶盒"、"拿起番茄酱"——换物体</td></tr>
+      <tr><td><b>LIBERO-Goal</b></td><td>目标泛化：相同物体布局，不同目标</td><td>同一场景，"打开抽屉" vs "把碗放炉子上"——换目标</td></tr>
+      <tr><td><b>LIBERO-Long (LIBERO-10)</b></td><td>长程组合：需要多个子步骤连续完成</td><td>"把汤碗放炉子上再关抽屉"——长 horizon 多步</td></tr>
+    </table>
+    <div class="note">另有 <b>LIBERO-90</b>(90个短任务，常用于预训练)。标准 LIBERO 无 OOD，分数普遍 95%+ 已饱和；OOD 变体见上面 LIBERO-Plus/PRO/X。</div>
+
+    <h4>② SimplerEnv — 两种评测协议 × 两个机器人</h4>
+    <p>SimplerEnv 在仿真里复现真机策略表现。关键是<b>两种评测协议</b>（这才是它的"严格度"分级）：</p>
+    <table>
+      <tr><th>协议</th><th>含义</th><th>严格度</th></tr>
+      <tr><td><b>Visual Matching (VM)</b></td><td>仿真渲染刻意贴近真机图像(叠加真实背景纹理)，让 sim 尽量对齐 real</td><td>标准</td></tr>
+      <tr><td><b>Variant Aggregation (VA)</b></td><td>系统改变背景/光照/桌面/相机等多种变体后取平均，测鲁棒性</td><td>更难(近 OOD)</td></tr>
+    </table>
+    <table>
+      <tr><th>平台</th><th>任务</th></tr>
+      <tr><td><b>Google Robot</b></td><td>Pick Coke Can(抓可乐罐)、Move Near(把A移到B附近)、Open/Close Top/Middle/Bottom Drawer(开关抽屉)、Put in Drawer(放进抽屉)</td></tr>
+      <tr><td><b>WidowX (Bridge)</b></td><td>Put Carrot on Plate(胡萝卜放盘)、Put Spoon on Tablecloth(勺子放桌布)、Put Eggplant in Basket(茄子放篮)、Stack Green on Yellow Cube(叠方块)</td></tr>
+    </table>
+
+    <h4>③ RoboTwin 2.0 — Easy vs Hard 到底差在哪</h4>
+    <div class="key"><b>这就是 easy/hard 的答案！</b> RoboTwin 的 Easy/Hard 不是任务不同，而是<b>场景随机化程度</b>不同：
+    <table style="margin-top:8px">
+      <tr><th></th><th>Easy (demo_clean)</th><th>Hard (demo_randomized)</th></tr>
+      <tr><td>场景</td><td>干净、固定背景/光照/桌面</td><td>域随机化：杂乱物/光照/背景/桌面纹理/语言 5 轴随机</td></tr>
+      <tr><td>训练演示量</td><td>50 条/任务</td><td>500 条/任务</td></tr>
+      <tr><td>考验</td><td>基础任务学习</td><td>视觉鲁棒性 / sim2real 泛化</td></tr>
+    </table></div>
+    <p>共 <b>50 个双臂任务</b>，一个模型全部训。任务举例(从 starVLA 数据配置真实取)：adjust_bottle(调瓶子)、beat_block_hammer(锤子敲块)、blocks_ranking(方块排序)、click_alarmclock/bell(按闹钟/铃)、handover_block/mic(递方块/麦克风)、hanging_mug(挂杯子)、lift_pot(抬锅)、move_can_pot(移罐子)等。每任务都有 Clean/ 和 Randomized/ 两个版本。</p>
+    <div class="note">RoboTwin 2.0 派生 3 个 OOD 子集：<b>C2R</b>(干净训随机测)、<b>IF</b>(指令跟随)、<b>XE</b>(跨本体)——见上面 OOD 表。</div>
+
+    <h4>④ RoboCasa — 厨房场景，tabletop 与 365 两档</h4>
+    <table>
+      <tr><th>版本</th><th>规模</th><th>任务类型</th></tr>
+      <tr><td><b>RoboCasa (tabletop)</b></td><td>~24-100 任务</td><td>桌面厨房：pick-and-place、开关水龙头、开关柜门等原子技能</td></tr>
+      <tr><td><b>RoboCasa365</b></td><td>365 任务，2500 厨房环境</td><td>最大规模厨房 benchmark，含 Composite-Unseen(未见组合)子集测长程组合泛化</td></tr>
+    </table>
+    <p>用 PandaOmron 移动臂(12-DoF)，场景写实，3200+ 物体资产。GR1 版本(RoboCasa-GR1)用于人形评测。</p>
+
+    <h4>⑤ CALVIN — 长程语言链，ABC→D 是难点</h4>
+    <p>CALVIN 有 34 个原子任务(开抽屉/推方块/开灯/移滑块/旋转等)，核心玩法是<b>连续完成一串任务(5-in-a-row)</b>，指标是<b>平均连续完成长度(Avg. Length，满分5)</b>。难度来自<b>环境分割</b>：</p>
+    <table>
+      <tr><th>设置</th><th>含义</th><th>难度</th></tr>
+      <tr><td><b>D→D</b> (task_D_D)</td><td>在 D 环境训、D 环境测</td><td>基础(同分布)</td></tr>
+      <tr><td><b>ABC→D</b></td><td>在 A/B/C 环境训、没见过的 D 环境测</td><td>难(zero-shot 环境泛化，天然 OOD)</td></tr>
+    </table>
+    <p>CALVIN 是"推理时引导"类方法(SuSIE/DISCO/DynaGuide/VLS)的标准测试台。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">3.6 "难度/分级"术语横向对照</h3>
+    <p>不同 benchmark 的"分级"含义完全不同，别混淆：</p>
+    <table>
+      <tr><th>benchmark</th><th>分级方式</th><th>分级的本质</th></tr>
+      <tr><td>LIBERO</td><td>4 套件(Spatial/Object/Goal/Long)</td><td>测<b>不同泛化维度</b>，非难度递增</td></tr>
+      <tr><td>RoboTwin</td><td><b>Easy / Hard</b></td><td><b>场景随机化程度</b>(clean vs domain-randomized)</td></tr>
+      <tr><td>SimplerEnv</td><td>Visual Matching / Variant Aggregation</td><td><b>评测严格度</b>(对齐真机 vs 多变体取平均)</td></tr>
+      <tr><td>CALVIN</td><td>D→D / ABC→D</td><td><b>环境是否见过</b>(同分布 vs zero-shot)</td></tr>
+      <tr><td>RoboCasa</td><td>tabletop / 365 / Composite-Unseen</td><td><b>规模与组合泛化</b></td></tr>
+      <tr><td>LIBERO-Plus</td><td>7 维 × 5 级梯度</td><td><b>扰动强度</b>逐级加大</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
     <h3 style="color:var(--orange);margin-bottom:12px">4. 为什么 OOD 评测越来越重要？</h3>
     <p>核心观点（Qwen-RobotManip 2026）：<b>标准 benchmark 高分已不能证明真泛化</b>。</p>
     <ul>
