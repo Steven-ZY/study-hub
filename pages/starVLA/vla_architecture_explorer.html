@@ -816,6 +816,83 @@ VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
 预训练数据: Bridge + Fractal(RT-1) 等 OXE 子集 (见 model_zoo)</code></pre>
     <p style="margin-top:8px">每个 benchmark 目录内含数据准备脚本、训练配置(yaml)、评测接口(model2*_interface.py)，通过 <b>server-client</b> 架构解耦模型推理与环境评测（详见"训练数据流"tab）。</p>
   </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">7. 真机数据集全景 <span style="color:var(--orange)">(外部文档: 内部数据集汇总 wiki)</span></h3>
+    <p>真机数据是 VLA 学"怎么动"的核心来源。下面是业界主流真机数据集：</p>
+    <table>
+      <tr><th>数据集</th><th>开源?</th><th>规模</th><th>机器人 / 特点</th></tr>
+      <tr><td><b>Open X-Embodiment</b></td><td>开源</td><td>200万+ 条 / ~9TB</td><td>谷歌联合高校，22 种机器人，跨本体大联盟</td></tr>
+      <tr><td><b>DROID</b></td><td>开源</td><td>76K+ episodes / 564 场景</td><td>Franka，多实验室分布式采集，多样性极高</td></tr>
+      <tr><td><b>BridgeData V2</b></td><td>开源</td><td>60,096 条轨迹 / 24 环境</td><td>UC-Berkeley，WidowX 低成本机器人，语言标注丰富</td></tr>
+      <tr><td><b>UMI</b></td><td>开源</td><td>2.5万+ 条</td><td>Stanford，基于 UMI 手持夹爪，<b>无需机器人</b>即可采集，腕上眼</td></tr>
+      <tr><td><b>RDT</b></td><td>开源</td><td>6千+ 条</td><td>清华，类 ALOHA 双臂操作</td></tr>
+      <tr><td><b>RH20T</b></td><td>开源</td><td>11万+ 条</td><td>上交，接触丰富，含视觉+<b>力觉+音频</b>+动作+人类演示</td></tr>
+      <tr><td><b>AgiBot World</b></td><td>开源</td><td>百万+ 原子动作</td><td>智元，100 台同构机器人，100+ 场景，含视触觉/六维力/灵巧手</td></tr>
+      <tr><td><b>GraspNet-1Billion</b></td><td>开源</td><td>97,280 RGB-D 图 / 10亿抓取姿态</td><td>上交，通用物体抓取基准，88 种日常物品+3D模型</td></tr>
+      <tr><td><b>OAKINK2</b></td><td>开源</td><td>627 双手操纵序列 / 401万帧</td><td>双手物体操纵，Affordance/原语/复杂任务三层抽象</td></tr>
+      <tr><td><b>FMB</b></td><td>开源</td><td>22,550 条轨迹</td><td>功能操作基准，多阶段装配(peg插板)，Franka，2全局+2腕部视角</td></tr>
+      <tr><td><b>宇树 Unitree</b></td><td>开源</td><td>—</td><td>G1灵巧手/夹爪、Z1双臂操作数据 + 训好的 DP/ACT 模型</td></tr>
+      <tr><td><b>π0 dataset</b></td><td>闭源</td><td>1万+ 小时 / 7类机器人 68任务</td><td>Physical Intelligence 自采，工业级护城河</td></tr>
+      <tr><td><b>GR-2</b></td><td>闭源</td><td>4万+ 条</td><td>字节，GR-2 训练专采</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">8. 仿真数据集全景 <span style="color:var(--orange)">(外部文档)</span></h3>
+    <table>
+      <tr><th>平台</th><th>单位</th><th>规模/任务</th><th>特点</th></tr>
+      <tr><td><b>CALVIN</b></td><td>—</td><td>1场景4操作任务，长程</td><td>语言条件长时序；观测含头部+腕部RGBD+关节+末端+触觉；动作支持绝对/相对末端位姿+夹爪或关节</td></tr>
+      <tr><td><b>Meta-World</b></td><td>Farama</td><td>50 任务</td><td>元强化学习/多任务基准，任务标准化</td></tr>
+      <tr><td><b>LIBERO</b></td><td>—</td><td>130 任务(4套件)</td><td>终身学习基准，声明性知识(物体/空间)+过程性知识(动作)迁移</td></tr>
+      <tr><td><b>RoboMimic</b></td><td>Stanford/UT Austin</td><td>多套演示</td><td>从演示学习框架，提供数据集+学习算法</td></tr>
+      <tr><td><b>RoboCasa</b></td><td>UT Austin/NVIDIA</td><td>大规模</td><td>厨房日常任务，高质量人类演示库</td></tr>
+      <tr><td><b>Behavior-1K</b></td><td>Stanford 李飞飞</td><td>1000 任务/8场景</td><td>基于 Nvidia Omniverse，1900+物体类型，支持柔性体/流体/热效应</td></tr>
+      <tr><td><b>VLABench</b></td><td>—</td><td>100 任务(60原语+40复合)</td><td>Primitive(1-2维能力) vs Composite(多步推理长程规划)</td></tr>
+      <tr><td><b>UniDexGrasp/++</b></td><td>北大 王鹤</td><td>—</td><td>仿真中基于点云的抓取姿态估计</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--green);margin-bottom:12px">9. 人类视频数据集 <span style="color:var(--orange)">(外部文档)</span></h3>
+    <p>人类视频便宜且丰富，用于补机器人数据的规模和行为多样性(需经 H2R 转换才能变成机器人可学轨迹)：</p>
+    <table>
+      <tr><th>数据集</th><th>规模</th><th>特点</th></tr>
+      <tr><td><b>Ego4D</b></td><td>3600 小时</td><td>第一视角，9国74地点926人，日常活动，含音频/3D网格/眼动</td></tr>
+      <tr><td><b>Ego-Exo4D</b></td><td>1286.3 小时</td><td>多模态多视角，13城市740拍摄者，技能性活动，第一+第三视角配对</td></tr>
+      <tr><td><b>HowTo100M</b></td><td>1.36亿视频剪辑/120万YouTube视频</td><td>教学叙述视频，23k活动(烹饪/手工/园艺/健身)</td></tr>
+      <tr><td><b>EPIC-KITCHENS</b></td><td>55 小时/32厨房</td><td>厨房第一视角，39594动作片段，454158物体框</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--pink);margin-bottom:12px">10. 小米内部数据集 <span style="color:var(--orange)">(外部文档: 常用数据集整理 wiki)</span></h3>
+    <p>小米机器人团队的内部数据分真机、仿真、人类视频三类，均上云管理(TOS)：</p>
+    <table>
+      <tr><th>类别</th><th>数据集</th><th>批次命名规则</th></tr>
+      <tr><td rowspan="3">真机</td><td>M92U 真机数据</td><td>工站名 + 日期 + 机器人编号</td></tr>
+      <tr><td>松灵(Cobot Magic)真机数据</td><td>日期 + 任务名称 + cobot_magic</td></tr>
+      <tr><td>AC_one 真机数据</td><td>日期 + 机器编号</td></tr>
+      <tr><td rowspan="2">仿真</td><td>Curobo 仿真数据(MiUniverse)</td><td>curobo + 日期 + 机器型号</td></tr>
+      <tr><td>MimicGen 仿真数据</td><td>日期 + libero_aloha + 左右手 + 任务名 + cobot_magic</td></tr>
+      <tr><td>人类视频</td><td>第一人称数据</td><td>日期 + 批次 + human_video</td></tr>
+    </table>
+    <div class="note"><b>MimicGen 仿真数据示例</b>：基于 LIBERO-ALOHA，左手(pnp_left)/右手(pnp_right)各 30 个物体的抓放任务(alphabet_soup/cream_cheese/tomato_sauce/milk/ketchup/mug/bowl/apple/avocado 等)，每任务 10×25 条演示。个别任务标注失败(moka_pot 任务失败、oil_tin 成功率低)。</div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px">
+    <h3 style="color:var(--accent);margin-bottom:12px">11. AgiBot World 详解 <span style="color:var(--orange)">(外部文档: AgiBot数据)</span></h3>
+    <p>智元 AgiBot World 是重要的开源大规模数据集，分三部分：</p>
+    <table>
+      <tr><th>子集</th><th>Episodes</th><th>Tasks</th><th>相机</th><th>类型</th></tr>
+      <tr><td><b>AgiBotDigitalWorld</b></td><td>~49k (48984)</td><td>~6</td><td>8</td><td>仿真场景</td></tr>
+      <tr><td><b>AgiBotWorld-Alpha</b></td><td>~18k (18081)</td><td>36</td><td>8</td><td>真实场景</td></tr>
+      <tr><td><b>AgiBotWorld-Beta</b></td><td>更大规模</td><td>—</td><td>—</td><td>真实场景</td></tr>
+    </table>
+    <p style="margin-top:8px"><b>多相机配置</b>(8路)：head(头部) + head_front/left/right_fisheye(前/左/右鱼眼) + back_left/right_fisheye(后左/右鱼眼) + hand_left/right(左右手腕)。</p>
+    <p style="margin-top:8px"><b>本体数据结构</b>(action/state 各含)：effector(执行器: 力/位置) + end(末端: 角速度/朝向/位置/速度/力矩) + joint(关节: 电流/力矩/位置/速度) + robot(底盘: 朝向/速度) + waist(腰部, 真机)。数据需转成 LeRobot 格式训练。</p>
+    <div class="key"><b>看点</b>：AgiBot 的动作/状态结构非常完整(执行器/末端/关节/底盘/腰全都有)，这正是"移动式双臂人形"平台的典型数据组织——对比单臂 Franka(只有末端+夹爪)，人形数据维度多得多。</div>
+  </div>
 </div>
 
 <div class="panel" id="panel-deepdive">
