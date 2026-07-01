@@ -120,6 +120,7 @@ tr:hover td { background: rgba(96,165,250,0.05); }
   <div class="tab active" data-tab="overview">整体架构</div>
   <div class="tab" data-tab="backbones">Backbone 层</div>
   <div class="tab" data-tab="action-heads">Action Head 层</div>
+  <div class="tab" data-tab="catalog">全部模型清单</div>
   <div class="tab" data-tab="dataflow">训练数据流</div>
   <div class="tab" data-tab="deepdive">深度数据流</div>
   <div class="tab" data-tab="compare">方法对比</div>
@@ -287,6 +288,87 @@ vl_embs_list = list(qwenvl_outputs.hidden_states[-expected_layers:])</code></pre
         <b style="font-size:0.85em">FAST（自回归）</b>
         <p style="font-size:0.85em;color:var(--text-dim);margin-top:4px">VLM 既是编码器也是生成器，不可分。因果注意力让图像/语言 token 自然 condition 动作 token。必须微调整个 VLM。</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Panel: Catalog -->
+<div class="panel" id="panel-catalog">
+  <h2 style="margin-bottom:16px">StarVLA 全部模型清单（25 个注册 Framework）</h2>
+  <p style="color:var(--text-dim);margin-bottom:16px">论文只重点讲 4 个代表性变体（FAST/OFT/PI/GR00T），但代码库 <code>FRAMEWORK_REGISTRY</code> 实际注册了 <b>25 个</b> framework。下面是逐个核对源码后的完整清单。每个 = 1 个 Backbone + 1 个 Action Head 的具体组合。</p>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--accent);margin-bottom:12px">A. 论文四大代表范式（Action Head 家族）</h3>
+    <table>
+      <tr><th>注册名</th><th>Backbone</th><th>Action Head</th><th>范式</th><th>文件</th></tr>
+      <tr><td><b>QwenFast</b></td><td>Qwen2.5/3-VL (+Action词表)</td><td>FAST tokenizer</td><td>自回归离散token</td><td>VLM4A/QwenFast.py</td></tr>
+      <tr><td><b>QwenOFT</b></td><td>Qwen2.5/3-VL</td><td>MLP (action special token)</td><td>并行回归 L1</td><td>VLM4A/QwenOFT.py</td></tr>
+      <tr><td><b>QwenPI</b> (=QwenFM)</td><td>Qwen2.5/3-VL</td><td>层级 Cross-DiT</td><td>Flow Matching</td><td>VLM4A/QwenPI.py</td></tr>
+      <tr><td><b>QwenGR00T</b></td><td>Qwen2.5/3-VL</td><td>单源 DiT</td><td>Flow Matching</td><td>VLM4A/QwenGR00T.py</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">B. 换 VLM Backbone 的移植变体（同一 Action Head，不同 VLM）</h3>
+    <table>
+      <tr><th>注册名</th><th>Backbone</th><th>Action Head</th><th>说明</th></tr>
+      <tr><td><b>Gemma4PI</b></td><td>Gemma-4 (google/gemma-4-E2B-it)</td><td>层级 Cross-DiT (FM)</td><td>QwenPI 移植到 Gemma4</td></tr>
+      <tr><td><b>Gemma4GR00T</b></td><td>Gemma-4</td><td>单源 DiT (FM)</td><td>QwenGR00T 移植到 Gemma4</td></tr>
+      <tr><td><b>MiniCPMPI</b></td><td>MiniCPM-V 4.6</td><td>层级 Cross-DiT (FM)</td><td>QwenPI 移植到 MiniCPM</td></tr>
+      <tr><td><b>MiniCPMGR00T</b></td><td>MiniCPM-V 4.6</td><td>单源 DiT (FM)</td><td>QwenGR00T 移植到 MiniCPM</td></tr>
+      <tr><td><b>CosmosGR00T</b></td><td>Cosmos-Reason2 (架构=Qwen3-VL)</td><td>单源 DiT (FM)</td><td>QwenGR00T 用 Cosmos-Reason2 VLM</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:0.85em;color:var(--text-dim)">这类变体证明了"Backbone 可插拔"——同一动作头换个 VLM 就是新 framework，几乎零改动。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--green);margin-bottom:12px">C. 换 Action Head 的探索变体（新颖动作头）</h3>
+    <table>
+      <tr><th>注册名</th><th>Backbone</th><th>Action Head</th><th>创新点</th></tr>
+      <tr><td><b>QwenPI_v3</b></td><td>Qwen2.5/3-VL</td><td>压缩层级 Cross-DiT</td><td>每层 VLM 经 LayerNorm+Linear 投影降维(2560→1024)，省~(vl/dit)²参数；离散化state注入语言。已放出SimplerEnv 69.8% ckpt</td></tr>
+      <tr><td><b>QwenDiscreteDiffusion</b></td><td>Qwen2.5-VL</td><td>MaskGIT 离散扩散头</td><td>层级 cross-attn 结构同 PI，但连续 FM 换成对动作分箱的离散扩散(预测logits)，支持 RTC 实时分块</td></tr>
+      <tr><td><b>QwenAdapter</b></td><td>Qwen-VL</td><td>VLA-Adapter 头</td><td>动作头来自 VLA-Adapter 论文</td></tr>
+      <tr><td><b>QwenDual</b></td><td>Qwen2.5-VL <b>+ DINOv2</b></td><td>单源 DiT (FM)</td><td>双视觉编码器：VLM + DINOv2 多视角空间特征融合</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--orange);margin-bottom:12px">D. WM4A：世界模型做 Backbone（6 个）</h3>
+    <table>
+      <tr><th>注册名</th><th>Backbone (World Model)</th><th>Action Head</th></tr>
+      <tr><td><b>WanPI</b></td><td>Wan2.2-TI2V-5B (视频DiT)</td><td>层级 Cross-DiT (FM)</td></tr>
+      <tr><td><b>WanGR00T</b></td><td>Wan2.2-TI2V-5B</td><td>单源 DiT (FM)</td></tr>
+      <tr><td><b>WanOFT</b></td><td>Wan2.2-TI2V-5B</td><td>MLP 回归 (OFT)</td></tr>
+      <tr><td><b>CosmoPredict2PI</b></td><td>Cosmos-Predict2 DiT</td><td>层级 Cross-DiT (FM)</td></tr>
+      <tr><td><b>CosmoPredict2GR00T</b></td><td>Cosmos-Predict2 DiT</td><td>单源 DiT (FM)</td></tr>
+      <tr><td><b>CosmoPredict2OFT</b></td><td>Cosmos-Predict2 DiT</td><td>MLP 回归 (OFT)</td></tr>
+    </table>
+    <p style="margin-top:8px;font-size:0.85em;color:var(--text-dim)">WM4A = "World Model for Action"。把感知 backbone 从 VLM 换成视频生成模型（Wan2.2 / Cosmos-Predict2），复用同样的 4 类动作头。2×3 = 6 个组合（PI/GR00T/OFT × Wan/Cosmos）。</p>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--pink);margin-bottom:12px">E. 复杂/集成系统（多模块组合）</h3>
+    <table>
+      <tr><th>注册名</th><th>Backbone</th><th>Action Head</th><th>特点</th></tr>
+      <tr><td><b>InternVLA-M1</b></td><td>Qwen2.5-VL + DINO 多视角</td><td>层级 QFormer 聚合 → DiT</td><td>StarVLA 的前身(codebase fork 自 InternVLA-M1)，QFormer 聚合多层VLM隐状态</td></tr>
+      <tr><td><b>LangForce</b></td><td>Qwen-VL</td><td>单源 DiT (FM) + 语言力</td><td>ICML2026;语言span一致性+硬token LLR+shortcut gate(贝叶斯分解)</td></tr>
+      <tr><td><b>ABot_M0</b></td><td>Qwen3-VL 4B (ABot-M0预训练权重)</td><td>Flow Matching</td><td>接入 ABot-M0 团队预训练权重(amap-cvlab)</td></tr>
+    </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px">
+    <h3 style="color:var(--accent);margin-bottom:12px">规律总结：组合矩阵</h3>
+    <pre style="font-size:0.8em;line-height:1.5"><code>              │ FAST │ OFT │ PI(层级DiT) │ GR00T(单源DiT) │ 其它头
+──────────────┼──────┼─────┼─────────────┼────────────────┼──────────
+Qwen-VL       │  ✓   │  ✓  │  ✓ (+v3)    │  ✓             │ Adapter/离散扩散/Dual
+Gemma-4       │      │     │  ✓          │  ✓             │
+MiniCPM-V     │      │     │  ✓          │  ✓             │
+Cosmos-Reason2│      │     │             │  ✓             │
+Wan2.2(WM)    │      │  ✓  │  ✓          │  ✓             │
+Cosmos-Pred2  │      │  ✓  │  ✓          │  ✓             │
+特殊集成      │      │     │             │                │ M1 / LangForce / ABot_M0</code></pre>
+    <div style="margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;font-size:0.9em">
+    <b>核心洞察</b>：25 个 framework 本质是 <b>{Backbone} × {Action Head}</b> 笛卡尔积的一部分子集，加上少数带额外模块的集成系统（DINO/QFormer/语言力）。这正是 "Lego 式" 设计的体现——论文讲 4 个是为了讲清 4 类<b>范式</b>，代码库的 25 个是这些范式在不同 backbone 上的<b>实例化</b>。
     </div>
   </div>
 </div>
