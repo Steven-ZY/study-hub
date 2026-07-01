@@ -153,6 +153,7 @@
     {t:"π0.7 精读", u:"pages/papers/pi0.7.html", k:"pi0.7 π0.7 physical intelligence 上下文 元数据 bagel 世界模型 跨本体 组合泛化 coaching 子目标"},
     {t:"VERA 精读", u:"pages/papers/vera.html", k:"vera 视频模型 jacobian idm 雅可比 ibvs 光流 逆动力学 mit 零样本"},
     {t:"世界模型全景", u:"pages/papers/world_models.html", k:"世界模型 world model 显式 隐式 latent 触觉 视触觉 开环 闭环 mpc cem 规划 dreamtac contactworld dynaguide"},
+    {t:"VLA 训练与部署实战", u:"pages/vla-practice/vla_train_deploy.html", k:"训练 部署 损失 loss 微调 finetune lora 协同训练 co-training 知识隔离 ki tokenization fast dct rtc 实时 推理加速 ddim 采样 server client 归一化 动作表示 chunking 部署"},
     {t:"DynaGuide 仓库分析", u:"pages/DynaGuide/index.html", k:"dynaguide 引导 dynamics guidance"},
     {t:"VLMGuide 对比 / OOD", u:"pages/VLMGuide/VLMGuide_对比网页.html", k:"vlmguide ood 引导 竞品 注意力"},
     {t:"VLS 分析", u:"pages/vls/vls_analysis.html", k:"vls 引导 sigmoid"}

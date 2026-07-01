@@ -59,6 +59,12 @@
       "target": "pages/papers/world_models.html",
       "title": "世界模型全景",
       "category": "wm"
+    },
+    {
+      "source": "(built in-place)",
+      "target": "pages/vla-practice/vla_train_deploy.html",
+      "title": "VLA 训练与部署实战",
+      "category": "vla"
     }
   ]
 }
