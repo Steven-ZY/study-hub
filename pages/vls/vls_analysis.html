@@ -269,4 +269,5 @@ const links=[...document.querySelectorAll('nav a')];
 const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
 addEventListener('scroll',()=>{let i=secs.findIndex((s,k)=>s&&s.getBoundingClientRect().top>80);if(i<0)i=secs.length;i=Math.max(0,i-1);links.forEach(l=>l.classList.remove('active'));if(links[i])links[i].classList.add('active');});
 </script>
+<script src="../../assets/studyhub.js"></script>
 </body></html>

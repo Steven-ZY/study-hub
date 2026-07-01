@@ -24,6 +24,15 @@ h1{font-size:2.4em;text-align:center;margin-bottom:8px;background:linear-gradien
 .card p{color:var(--dim);font-size:0.88em}
 .card .meta{margin-top:12px;font-size:0.78em;color:var(--dim);border-top:1px solid var(--border);padding-top:8px}
 .section-title{color:var(--dim);font-size:0.85em;text-transform:uppercase;letter-spacing:1px;margin:30px 0 12px;padding-left:4px}
+.roadmap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:20px}
+.roadmap h2{font-size:1.05em;color:var(--accent);margin-bottom:14px}
+.rm-track{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.rm-step{flex:1;min-width:150px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:6px;position:relative;text-decoration:none;color:inherit;transition:all .2s}
+.rm-step:hover{border-color:var(--accent);transform:translateY(-2px)}
+.rm-step .rm-num{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;background:var(--accent);color:var(--bg);font-size:0.78em;font-weight:700;margin-bottom:6px}
+.rm-step h4{font-size:0.92em;margin:2px 0 4px;color:var(--text)}
+.rm-step p{font-size:0.76em;color:var(--dim);line-height:1.4}
+.rm-stage{font-size:0.72em;color:var(--dim);letter-spacing:1px;margin:14px 0 4px;text-transform:uppercase}
 footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;padding:20px}
 </style>
 </head>
@@ -32,6 +41,52 @@ footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;paddin
 
 <h1>Study Hub</h1>
 <p class="subtitle">项目分析 · 代码精读 · 架构对比 | 随时随地学习</p>
+
+<div class="roadmap">
+<h2>🧭 推荐学习路线</h2>
+<div class="rm-stage">第一阶段 · 入门(建立全局观)</div>
+<div class="rm-track">
+  <a class="rm-step" href="pages/starVLA/vla_architecture_explorer.html">
+    <span class="rm-num">1</span><h4>VLA 新手入门</h4>
+    <p>什么是 VLA、动作/观测长什么样、模仿学习、术语表(starVLA 页"新手入门"tab)</p>
+  </a>
+  <a class="rm-step" href="pages/starVLA/vla_architecture_explorer.html">
+    <span class="rm-num">2</span><h4>整体架构</h4>
+    <p>Backbone + Action Head 分解，四种动作头(FAST/OFT/GR00T/PI)</p>
+  </a>
+</div>
+<div class="rm-stage">第二阶段 · 核心原理(懂扩散数学)</div>
+<div class="rm-track">
+  <a class="rm-step" href="pages/dp/diffusion_policy_learn.html">
+    <span class="rm-num">3</span><h4>Diffusion Policy</h4>
+    <p>DDPM 去噪、条件化、Receding Horizon、FiLM，代码逐行精读</p>
+  </a>
+  <a class="rm-step" href="pages/dp/dp_dit_flowmatching.html">
+    <span class="rm-num">4</span><h4>DP·DiT·Flow Matching 三剑客</h4>
+    <p>三者原理/关系/衍生，DDPM↔DDIM↔FM，DiT 架构，统一 ODE 视角</p>
+  </a>
+  <a class="rm-step" href="pages/starVLA/code_walkthrough.html">
+    <span class="rm-num">5</span><h4>OpenPI & StarVLA 代码精读</h4>
+    <p>π₀ 双 Gemma vs StarVLA DiT，逐行对照</p>
+  </a>
+</div>
+<div class="rm-stage">第三阶段 · 前沿(读最新工作)</div>
+<div class="rm-track">
+  <a class="rm-step" href="pages/papers/pi0.7.html">
+    <span class="rm-num">6</span><h4>π0.7</h4>
+    <p>多模态上下文条件化 + 世界模型子目标 + 跨本体泛化</p>
+  </a>
+  <a class="rm-step" href="pages/papers/vera.html">
+    <span class="rm-num">7</span><h4>VERA</h4>
+    <p>视频世界模型 + Jacobian IDM，神经版 IBVS</p>
+  </a>
+  <a class="rm-step" href="pages/papers/world_models.html">
+    <span class="rm-num">8</span><h4>世界模型全景</h4>
+    <p>显式/隐式、视触觉、开环/闭环、MPC+CEM 规划</p>
+  </a>
+</div>
+<p style="font-size:0.78em;color:var(--dim);margin-top:12px">💡 卡在术语随时回 starVLA 页"新手入门"tab 查词典；每页底部有自测题检验掌握。</p>
+</div>
 
 <div class="section-title">VLA / 具身智能</div>
 <div class="grid">
@@ -120,5 +175,6 @@ footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;paddin
 
 </div>
 <footer>~/study-hub/index.html · 浏览器打开即用 · 后续可部署到 GitHub Pages</footer>
+<script src="assets/studyhub.js"></script>
 </body>
 </html>

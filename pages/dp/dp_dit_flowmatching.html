@@ -239,6 +239,7 @@ for t in scheduler.timesteps:                 # DDIM 只有 16 个 t
 <tr><td>π0</td><td>FM loss (预测 v)</td><td>ODE 欧拉, 10 步</td><td class="path">openpi</td></tr>
 </table>
 <p>DP 是"DDPM 训练 + DDIM 采样"的典型；π0/GR00T 是"FM 训练 + ODE 采样"。看懂这两行，就理解了当前动作生成的两条主流技术路线。</p>
+<div class="note">🔗 想看 Flow Matching 在最新工作里怎么用？→ <a href="../papers/pi0.7.html" style="color:var(--accent)">π0.7 精读</a>(FM 动作专家 + 世界模型子目标) · <a href="../papers/vera.html" style="color:var(--accent)">VERA 精读</a>(视频世界模型 + Jacobian IDM) · <a href="../papers/world_models.html" style="color:var(--accent)">世界模型全景</a></div>
 </div>
 
 <div class="section">
@@ -732,5 +733,6 @@ function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{
   sc.scrollIntoView({behavior:'smooth',block:'center'});}
 renderQuiz();
 </script>
+<script src="../../assets/studyhub.js"></script>
 </body>
 </html>

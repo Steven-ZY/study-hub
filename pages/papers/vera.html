@@ -50,6 +50,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="ibvs">与 IBVS 类比</div>
 <div class="tab" data-tab="exp">实验</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="quiz">自测</div>
 </div>
 
 
@@ -58,6 +59,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <h2>一句话</h2>
 <p><b>让 14B 视频生成模型保持"零动作(action-free)"当作梦想未来的世界模型，再训一个基于图像空间雅可比场的逆动力学模型(J-IDM)，通过光流把"梦到的未来画面"反解成机器人动作。</b> 一个视频规划器，多个 IDM——通往零样本、跨本体机器人控制的路线。</p>
 </div>
+<div class="note"><b>本页可靠性</b>：整理自 VERA 论文(arXiv:2605.27817)、本地深度分析笔记与 <code>~/projects/VERA</code> 仓库代码。公式(雅可比场/伪逆)、实验数字来自论文；"与 IBVS 类比""差异化空间"为学习者解读。原文：<a href="https://arxiv.org/abs/2605.27817" target="_blank" style="color:var(--accent)">arXiv:2605.27817</a> · <a href="https://vera.csail.mit.edu/" target="_blank" style="color:var(--accent)">项目页</a> · <a href="https://github.com/sizhe-li/VERA" target="_blank" style="color:var(--accent)">代码</a>。</div>
 <div class="section">
 <h2>速览卡片</h2>
 <table>
@@ -259,12 +261,32 @@ VERA 先想目标、再反解动作，方向相反。</div>
 </div>
 </div>
 
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测：5 题检验理解</h2>
+<div id="quiz"></div>
+<div id="score" style="margin-top:16px;padding:14px;border-radius:8px;text-align:center;font-size:1.1em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:14px;padding:9px 22px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer">提交答案</button>
+</div>
+</div>
+
 </div>
 <script>
 document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
 document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
 document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
 t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+const QUIZ=[
+{q:"VERA 的两个阶段分别是什么？",o:["感知+控制","action-free视频世界模型(规划器) + Jacobian IDM(翻译器)","VLM+动作头","编码器+解码器"],a:1,e:"规划器梦想未来画面(本体无关)，J-IDM 把梦到的未来反解成动作(本体特异)。"},
+{q:"Jacobian IDM 学习的是什么？",o:["直接的图像→动作映射","图像空间的dense per-pixel雅可比场J(p,o)","视频生成模型","光流估计器"],a:1,e:"学 J(p,o)∈R^(2×n)，表达'动作微增量如何驱动每个像素运动'，再用正则化伪逆反解动作。"},
+{q:"VERA 与经典 IBVS 最大的不同？",o:["完全一样","目标和雅可比都是学习出来的(目标来自视频想象,雅可比来自self-play)","不用雅可比","不用视觉"],a:1,e:"IBVS用手工特征误差+解析雅可比+人工目标；VERA用dense光流+学习雅可比+视频模型想象的目标。"},
+{q:"为什么 J-IDM 比 Direct-IDM 好？",o:["参数更多","把映射结构化为局部线性雅可比,高DoF下数据效率约2×","推理更快","不需要数据"],a:1,e:"雅可比是局部性质、覆盖任意运动方向，高自由度(如16-DoF灵巧手)下数据效率约2×且随DoF增长优势扩大。"},
+{q:"VERA 明确不能做什么？",o:["跨本体","语言条件操作","纯RGB推理力控(force-based control)","灵巧手控制"],a:2,e:"论文明确承认无法从纯RGB推理force-based control，这正是触觉/力方向的差异化空间。"}
+];
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{const d=document.createElement('div');d.style.cssText='margin:16px 0;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';let h='<h4 style="color:var(--text);margin-bottom:8px">Q'+(i+1)+'. '+it.q+'</h4>';it.o.forEach((o,j)=>{h+='<label style="display:block;padding:7px 11px;margin:4px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-'+i+'-'+j+'"><input type="radio" name="q'+i+'" value="'+j+'" style="margin-right:7px">'+o+'</label>';});h+='<div id="exp-'+i+'" style="display:none;margin-top:7px;padding:9px;border-radius:6px;font-size:0.86em"></div>';d.innerHTML=h;c.appendChild(d);});}
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{const sel=document.querySelector('input[name="q'+i+'"]:checked');const e=document.getElementById('exp-'+i);e.style.display='block';it.o.forEach((_,j)=>{const l=document.getElementById('opt-'+i+'-'+j);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});document.getElementById('opt-'+i+'-'+it.a).style.borderColor='var(--green)';document.getElementById('opt-'+i+'-'+it.a).style.background='rgba(52,211,153,0.12)';if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确！'+it.e;}else{document.getElementById('opt-'+i+'-'+v).style.borderColor='var(--red)';document.getElementById('opt-'+i+'-'+v).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});const sc=document.getElementById('score');sc.style.display='block';let m=s>=5?'🏆 全对！':s>=3?'👍 不错':'📖 建议重读';sc.style.background='var(--surface2)';sc.style.border='2px solid var(--accent)';sc.style.color='var(--accent)';sc.innerHTML='得分：'+s+' / '+QUIZ.length+'　'+m;sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
 </script>
+<script src="../../assets/studyhub.js"></script>
 </body>
 </html>

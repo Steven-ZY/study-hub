@@ -50,6 +50,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="context">多模态上下文</div>
 <div class="tab" data-tab="exp">实验</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="quiz">自测</div>
 </div>
 
 
@@ -58,6 +59,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <h2>一句话</h2>
 <p><b>用丰富的"提示词"(上下文)让机器人基础模型开箱即用地泛化到新任务。</b> π0.7 的创新不在网络结构，而在一套"多模态上下文条件化"训练方法——给每条数据不仅标注"做什么"，还标注"怎么做/做得好不好"，让模型能从极其多样(含次优、失败、跨本体、非机器人)的数据里学习，并在推理时通过选择性提示精确控制行为。</p>
 </div>
+<div class="note"><b>本页可靠性</b>：内容整理自 Physical Intelligence 官方论文 π0.7 及本地深度分析笔记。架构参数(5B/860M/BAGEL 14B 等)、实验数字来自论文原文；"可借鉴/启发"部分为学习者解读。原文：<a href="https://pi.website/pi07" target="_blank" style="color:var(--accent)">pi.website/pi07</a> · 团队：Physical Intelligence。</div>
 <div class="section">
 <h2>速览卡片</h2>
 <table>
@@ -244,12 +246,32 @@ Action chunk [B,50,D] (实际执行 15 或 25 步)
 </div>
 </div>
 
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测：5 题检验理解</h2>
+<div id="quiz"></div>
+<div id="score" style="margin-top:16px;padding:14px;border-radius:8px;text-align:center;font-size:1.1em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:14px;padding:9px 22px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer">提交答案</button>
+</div>
+</div>
+
 </div>
 <script>
 document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
 document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
 document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
 t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+const QUIZ=[
+{q:"π0.7 的核心创新是什么？",o:["全新网络架构","多模态上下文条件化训练方法","更大的模型参数","新的强化学习算法"],a:1,e:"创新不在网络结构，而在给数据标注丰富上下文(子任务/子目标/元数据/控制模式)，让模型从多样混合质量数据学习。"},
+{q:"episode 元数据(速度/质量/错误)的主要作用？",o:["加快推理","让模型区分执行质量，从而能利用次优/失败数据","压缩模型","替代语言指令"],a:1,e:"打上质量标签后，训练时保留所有数据，推理时提示'最高质量'，就能从次优/失败数据中学习而不被拖累。"},
+{q:"子目标图像由什么生成？","o":["人工绘制","BAGEL 14B 世界模型","VLM 直接输出","随机采样"],a:1,e:"由 BAGEL(14B 图像生成模型)初始化的世界模型生成，提供比纯语言更明确的空间引导。"},
+{q:"知识隔离(KI)训练策略指什么？",o:["冻结整个模型","动作专家可attend VLM激活但梯度不回传VLM","只训练VLM","丢弃动作专家"],a:1,e:"动作专家能用VLM的表征，但梯度不回传到VLM骨干，保住VLM语言/视觉能力不被动作训练冲垮。"},
+{q:"π0.7 跨本体迁移的代表结果？",o:["无法跨本体","零样本折T恤从BiPi迁到UR5e达80%≈人类首次","只能同型号迁移","需要大量微调"],a:1,e:"零样本跨本体折T恤 85.6%进度/80%成功率，匹配人类遥操作首次尝试(90.9%/80.6%)。"}
+];
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{const d=document.createElement('div');d.style.cssText='margin:16px 0;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';let h='<h4 style="color:var(--text);margin-bottom:8px">Q'+(i+1)+'. '+it.q+'</h4>';it.o.forEach((o,j)=>{h+='<label style="display:block;padding:7px 11px;margin:4px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-'+i+'-'+j+'"><input type="radio" name="q'+i+'" value="'+j+'" style="margin-right:7px">'+o+'</label>';});h+='<div id="exp-'+i+'" style="display:none;margin-top:7px;padding:9px;border-radius:6px;font-size:0.86em"></div>';d.innerHTML=h;c.appendChild(d);});}
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{const sel=document.querySelector('input[name="q'+i+'"]:checked');const e=document.getElementById('exp-'+i);e.style.display='block';it.o.forEach((_,j)=>{const l=document.getElementById('opt-'+i+'-'+j);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});document.getElementById('opt-'+i+'-'+it.a).style.borderColor='var(--green)';document.getElementById('opt-'+i+'-'+it.a).style.background='rgba(52,211,153,0.12)';if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确！'+it.e;}else{document.getElementById('opt-'+i+'-'+v).style.borderColor='var(--red)';document.getElementById('opt-'+i+'-'+v).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});const sc=document.getElementById('score');sc.style.display='block';let m=s>=5?'🏆 全对！':s>=3?'👍 不错':'📖 建议重读';sc.style.background='var(--surface2)';sc.style.border='2px solid var(--accent)';sc.style.color='var(--accent)';sc.innerHTML='得分：'+s+' / '+QUIZ.length+'　'+m;sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
 </script>
+<script src="../../assets/studyhub.js"></script>
 </body>
 </html>

@@ -50,10 +50,12 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="loop">开环 vs 闭环</div>
 <div class="tab" data-tab="planning">MPC+CEM 规划</div>
 <div class="tab" data-tab="summary">选题结论</div>
+<div class="tab" data-tab="quiz">自测</div>
 </div>
 
 
 <div class="panel active" id="panel-intro">
+<div class="note"><b>本页可靠性</b>：整理自本地"世界模型相关论文总结.md"(基于 30+ 篇论文的深度分析)。分类判定、开环/闭环、MPC+CEM 归属均按笔记中源码核对+论文原文的结论；个别边界案例(如 VTWM 的 open-loop chunk)已按笔记标注。严肃引用前建议对照各论文原文。</div>
 <div class="section">
 <h2>什么是"世界模型"</h2>
 <p>世界模型(World Model)是一个能<b>预测"未来会怎样"</b>的模型。在机器人里它回答的核心问题通常是两类之一：</p>
@@ -306,12 +308,33 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 </div>
 </div>
 
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测：6 题检验理解</h2>
+<div id="quiz"></div>
+<div id="score" style="margin-top:16px;padding:14px;border-radius:8px;text-align:center;font-size:1.1em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:14px;padding:9px 22px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer">提交答案</button>
+</div>
+</div>
+
 </div>
 <script>
 document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
 document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
 document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
 t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+const QUIZ=[
+{q:"'在latent里去噪'的视频扩散模型应归为哪类？",o:["latent空间预测","显式可解码预测(目标仍是可解码的未来视频)","混合型","不算世界模型"],a:1,e:"判定看最终目标是否可解码成未来观测。视频扩散虽在VAE latent去噪，但目标是生成未来视频，属显式可解码预测。"},
+{q:"Action-conditioned 与 action-free 世界模型的区别？",o:["没区别","前者'执行动作a会怎样'评价动作;后者'未来应变成什么样'再反解动作","参数量不同","一个用视觉一个用触觉"],a:1,e:"ContactWorld/DynaGuide是action-conditioned;VERA是action-free(先想目标再反解动作)。"},
+{q:"CEM planning 一定是 MPC 吗？",o:["是","不是——只有每步只执行第一步+用新观测重规划才算receding-horizon MPC","CEM就是MPC","两者无关"],a:1,e:"VTWM用CEM但best sequence是open-loop chunk执行,不算严格MPC。ContactWorld每步执行第一步+重规划才是MPC。"},
+{q:"哪两个模型是最明确的严格 MPC+CEM？",o:["DreamZero/tau0-WM","ContactWorld/V-JEPA2","MvM/DDP-WM","UniPi/LVP"],a:1,e:"ContactWorld(CEM+receding-horizon MPC接触规划)和V-JEPA2(feature space CEM搜索)是最明确的两个。"},
+{q:"DreamTac/VTAM/PACE 的闭环性质？",o:["严格闭环MPC","偏open-loop/训练辅助(预测不进在线MPC搜索)","best-of-N重排","gradient guidance"],a:1,e:"它们预测未来视觉/触觉,但预测结果通常不作为在线MPC搜索或反复replanning的核心,偏open-loop。"},
+{q:"纯视觉世界模型(如Cosmos/LVP)对触觉模态应标注为？",o:["隐式预测触觉","触觉N/A(不涉及该模态)","强显式触觉","弱显式触觉"],a:1,e:"它们不涉及触觉,应标'触觉N/A',而不是'隐式预测触觉'——这是常见误标。"}
+];
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{const d=document.createElement('div');d.style.cssText='margin:16px 0;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';let h='<h4 style="color:var(--text);margin-bottom:8px">Q'+(i+1)+'. '+it.q+'</h4>';it.o.forEach((o,j)=>{h+='<label style="display:block;padding:7px 11px;margin:4px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-'+i+'-'+j+'"><input type="radio" name="q'+i+'" value="'+j+'" style="margin-right:7px">'+o+'</label>';});h+='<div id="exp-'+i+'" style="display:none;margin-top:7px;padding:9px;border-radius:6px;font-size:0.86em"></div>';d.innerHTML=h;c.appendChild(d);});}
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{const sel=document.querySelector('input[name="q'+i+'"]:checked');const e=document.getElementById('exp-'+i);e.style.display='block';it.o.forEach((_,j)=>{const l=document.getElementById('opt-'+i+'-'+j);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});document.getElementById('opt-'+i+'-'+it.a).style.borderColor='var(--green)';document.getElementById('opt-'+i+'-'+it.a).style.background='rgba(52,211,153,0.12)';if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确！'+it.e;}else{document.getElementById('opt-'+i+'-'+v).style.borderColor='var(--red)';document.getElementById('opt-'+i+'-'+v).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});const sc=document.getElementById('score');sc.style.display='block';let m=s>=6?'🏆 全对！':s>=4?'👍 不错':'📖 建议重读';sc.style.background='var(--surface2)';sc.style.border='2px solid var(--accent)';sc.style.color='var(--accent)';sc.innerHTML='得分：'+s+' / '+QUIZ.length+'　'+m;sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
 </script>
+<script src="../../assets/studyhub.js"></script>
 </body>
 </html>
