@@ -48,10 +48,11 @@ tr:nth-child(even){background:rgba(255,255,255,0.02)}
 <a href="#idea">2. 创新方案</a>
 <a href="#code">3. 代码细节</a>
 <a href="#deploy">4. 部署记录</a>
-<a href="#results">5. 评测结果</a>
-<a href="#findings">6. 关键发现</a>
-<a href="#conclusion">7. 结论</a>
-<a href="#steering">8. Steering 启示</a>
+<a href="#dataset">5. 数据集与评测</a>
+<a href="#results">6. 评测结果</a>
+<a href="#findings">7. 关键发现</a>
+<a href="#conclusion">8. 结论</a>
+<a href="#steering">9. Steering 启示</a>
 </nav>
 
 <main>
@@ -108,7 +109,7 @@ while time &gt;= -dt / 2:
 <tr><td>guidance/reward 生成</td><td>vlm_query/vlm_agent.py</td><td>codex(OpenAI 兼容)</td><td>✅ 正常</td></tr>
 <tr><td>stage recognition</td><td>core/gemini_grounder.py</td><td>Google Gemini SDK</td><td>❌ 无 key,已关</td></tr>
 </table>
-<div class="callout c-orange"><b>codex key 不能当 Gemini key 用。</b><code>gemini_grounder.py</code> 里 <code>import google.generativeai</code> 只认 Google key 与端点,塞 codex key 会认证失败。两者不同厂商、不同协议。我们只有 codex key,所以 stage recognition 被关闭(影响见第 6 节)。</div>
+<div class="callout c-orange"><b>codex key 不能当 Gemini key 用。</b><code>gemini_grounder.py</code> 里 <code>import google.generativeai</code> 只认 Google key 与端点,塞 codex key 会认证失败。两者不同厂商、不同协议。我们只有 codex key,所以 stage recognition 被关闭(影响见第 7 节)。</div>
 </section>
 
 <section id="deploy">
@@ -128,8 +129,50 @@ while time &gt;= -dt / 2:
 </table>
 </section>
 
+<section id="dataset">
+<h2 class="sec">5. 数据集与评测设定</h2>
+<p>看结果前先搞懂:我们在测什么、swap/task 是什么、为什么这些数字能验证 VLS。</p>
+
+<h3>5.1 LIBERO —— 原始机器人操作基准</h3>
+<p><b>LIBERO</b> 是机器人桌面操作的仿真基准(MuJoCo/robosuite)。给一句语言指令(如"打开中间的抽屉"),机器人执行动作,成功率 = 完成的 episode 比例。它有 4 个 task suite,各考察一种能力:</p>
+<table>
+<tr><th>suite</th><th>含义</th><th>例子</th></tr>
+<tr><td><b>Goal</b></td><td>同物体,不同目标</td><td>"打开抽屉" vs "关抽屉"</td></tr>
+<tr><td><b>Spatial</b></td><td>同物体,不同空间摆放</td><td>碗在盘子左边 / 右边</td></tr>
+<tr><td><b>Object</b></td><td>不同物体</td><td>拿番茄汤 / 拿字母汤</td></tr>
+<tr><td><b>10 (Long)</b></td><td>长程任务,多步骤串联</td><td>一连串子任务,步数最多</td></tr>
+</table>
+<p>每 suite 10 个 task × 每 task 20 episode = <b>每 suite 200 episode</b>(这就是 n=200 的来历)。</p>
+
+<h3>5.2 问题:VLA 在原始 LIBERO 上"作弊"</h3>
+<div class="callout c-orange">主流 VLA(OpenVLA/π0/π0.5)在<b>原始</b> LIBERO 上都能 >90%。但 LIBERO-PRO 论文发现:高分很大程度是<b>死记硬背训练场景</b>,不是真学会任务——只要对场景加点扰动,成绩就崩到接近 0。</div>
+
+<h3>5.3 LIBERO-PRO —— 加扰动测真泛化(我们用的就是它)</h3>
+<p>在原始任务上施加 5 种扰动,专门戳破"记忆"、逼出真实的分布外(OOD)能力:</p>
+<table>
+<tr><th>扰动</th><th>我的标签</th><th>改了什么</th><th>例子</th></tr>
+<tr><td><b>Position</b></td><td>_swap</td><td>把物体挪到别的合理位置(指令不变)</td><td>换 cup 和 bowl 的位置</td></tr>
+<tr><td><b>Object</b></td><td>_object</td><td>改物体外观/颜色/大小</td><td>"红杯"→"黄杯"</td></tr>
+<tr><td><b>Semantic</b></td><td>_lan</td><td>换说法表达同一指令</td><td>"grasp the mug"→"pick up the cup"</td></tr>
+<tr><td><b>Task</b></td><td>_task</td><td>改任务逻辑/目标(指令彻底变)</td><td>"拿杯子"→"拿黄油"</td></tr>
+<tr><td><b>Environment</b></td><td>_env</td><td>换工作场景</td><td>主桌→厨房桌</td></tr>
+</table>
+<div class="callout c-red">论文实测:π0.5 在原始 Object 上 98%,一加 Position 扰动掉到 17%,加 Task 扰动掉到 1%。<b>这就是 OOD 问题的量化体现。</b></div>
+
+<h3>5.4 为什么这能验证 VLS?</h3>
+<p>VLS 的卖点是「训练-free 推理时引导解决 OOD」。验证逻辑是一条清晰的对照链:</p>
+<pre><code>原始任务(90%+) ──加扰动──▶ baseline 崩溃(Object-swap 14%) ──加VLS引导──▶ 救回(36%)
+                            ↑ 这就是 OOD                      ↑ 这就是 VLS 的价值</code></pre>
+<ul>
+<li><b>baseline 在扰动下的低分</b>(swap 14% / task 12%)= OOD 问题真实存在的证据</li>
+<li><b>VLS 相对 baseline 的提升</b>(swap 14→36%)= VLS 确实在纠正 OOD,而非碰运气</li>
+<li>用 <b>4 suite × 2 种扰动</b> 交叉测,能看出 VLS 在哪类 OOD 有效、哪类失效</li>
+</ul>
+<div class="callout c-blue">所以"swap 14%""task 12%"单看是低分,但意义是 <b>baseline 在特定 OOD 下的表现基线</b>,VLS 的价值体现在"比这个基线高多少"。数据来源:LIBERO-PRO(arXiv:2510.03827),我们用 Position(swap)+ Task 两种扰动 × 4 suite,对齐 VLS 论文协议。</div>
+</section>
+
 <section id="results">
-<h2 class="sec">5. 评测结果</h2>
+<h2 class="sec">6. 评测结果</h2>
 <p>评测基准:LIBERO-PRO,4 suite(Goal/Spatial/10/Object)× 两种 OOD(Position/swap、Task)。Policy:π-0.5 LeRobot 作者权重。VLM guidance backend:codex gpt-5.5。</p>
 
 <h3>5.0 📊 完整结论总表(先看这张)</h3>
@@ -142,7 +185,7 @@ while time &gt;= -dt / 2:
 <h3>5.2 🌐 开发机 Swap 全量(n=200,最终数据)</h3>
 <figure><img src="assets/figE_dev_interim_results.png" alt="图 E:开发机 swap 全量最终结果 —— Object 14→36% 有效,Goal 反降,Spatial 因 kmeans 卡死不可靠" loading="lazy"/><figcaption>图 E:开发机 swap 全量最终结果 —— Object 14→36% 有效,Goal 反降,Spatial 因 kmeans 卡死不可靠</figcaption></figure>
 <div class="callout c-green"><b>Object-Swap 14.0%→36.4%</b>:VLS 有效纠偏,与论文 Position-Object(16→45%)同量级。</div>
-<div class="callout c-red"><b>Goal-Swap 27.5%→16.5%(反降)</b>:多阶段任务 + 关 stage recognition 所致,见第 6 节。</div>
+<div class="callout c-red"><b>Goal-Swap 27.5%→16.5%(反降)</b>:多阶段任务 + 关 stage recognition 所致,见第 7 节。</div>
 
 <h3>5.3 🌐 开发机 Task 扰动(方案 A,n=200 完成)</h3>
 <figure><img src="assets/figH_task_base_vs_vls.png" alt="图 H:Task 扰动 baseline vs VLS(关 stage recognition)" loading="lazy"/><figcaption>图 H:Task 扰动 baseline vs VLS(关 stage recognition)</figcaption></figure>
@@ -173,7 +216,7 @@ while time &gt;= -dt / 2:
 </section>
 
 <section id="findings">
-<h2 class="sec">6. 关键发现</h2>
+<h2 class="sec">7. 关键发现</h2>
 <div class="callout c-green"><b>发现 1:VLS 对 Position(swap)OOD 有效。</b>位置先验被打破时,baseline 大幅下降,VLS 用 VLM reward 把动作拉回正确目标(本机 object_swap 10%→50%,开发机 object_swap_vls 已达 50%+ 量级)。</div>
 <div class="callout c-red"><b>发现 2:多阶段任务缺 stage recognition 时,VLS 反而拖累。</b>goal 任务是 stage1 抓把手 → stage2 往 +Y 拉开,两阶段 reward 方向冲突。关了 stage recognition 后 VLS 全程用 stage1 reward 把动作钉在把手处,反而阻碍拉开 → VLS(16.5%)&lt; baseline(27.5%)。对比 object 任务 stage2"无需引导",所以 object 不受影响。<b>这说明 stage recognition 对多阶段任务是刚需,不是锦上添花。</b></div>
 <div class="callout c-orange"><b>发现 3:LIBERO10-Task 是 VLS 的能力边界。</b>长程任务(10+ 步序列)即使有引导也几乎无成功(视频墙最后一行全失败)。</div>
@@ -181,7 +224,7 @@ while time &gt;= -dt / 2:
 </section>
 
 <section id="conclusion">
-<h2 class="sec">7. 结论</h2>
+<h2 class="sec">8. 结论</h2>
 <ul>
 <li><b>方法成立</b>:训练-free 推理时引导能在不重训 policy 的前提下提升 Position OOD 表现,本机/开发机均复现出与论文一致的趋势。</li>
 <li><b>有边界</b>:多阶段任务依赖 stage recognition;长程任务(LIBERO10)仍是难点。</li>
@@ -192,7 +235,7 @@ while time &gt;= -dt / 2:
 </section>
 
 <section id="steering">
-<h2 class="sec">8. 对 Steering 课题的启示</h2>
+<h2 class="sec">9. 对 Steering 课题的启示</h2>
 <p>把 VLS 复现中暴露的问题,提炼成对后续「推理时引导 / steering」课题的可操作指导。</p>
 
 <h3>8.1 VLS 的三个软肋 = 课题突破口</h3>
