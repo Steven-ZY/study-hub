@@ -51,7 +51,10 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <div class="wrap">
 <header>
 <h1>VLA 推理时引导 · OOD 问题全景 · <span class="g">VLMGuide 课题规划</span></h1>
-<div class="sub">聚焦"已部署 VLA（π0.5）在真实场景的 OOD 失败"——分类、已有解法、以及我们的独特方向 · 2026-06-26</div>
+<div class="sub">聚焦"已部署 VLA（π0.5）在真实场景的 OOD 失败"——分类、已有解法、以及我们的独特方向 · 2026-06-29 更新（P0 探针后重写）</div>
+<div class="lead" style="margin-top:16px;border-color:#3a4566">
+<b>⚠️ 2026-06-29 重大更新：</b>原"familiarity-bias 注意力劫持"假设已被 P0 探针实验<b>四重证据证伪</b>（要旧物时注意力本就聚焦旧物、未被劫持）。主方向重写为 <b>OOD 指令-grounding 注入</b>：真正病灶是<b>指令无法在 attention 层把视觉注意力路由到 OOD 新物体/新方位的 patch</b>（指令拉不动、注意力退化为近均匀）。下方 PART3/PART4 已同步；详见 <code>P0_探针实验_执行记录.md §9</code> 与竞品主文档 §6.6。
+</div>
 </header>
 
 <!-- ===================== PART 1: OOD 类型 ===================== -->
@@ -62,7 +65,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <table>
 <thead><tr><th>#</th><th>失败现象</th><th>失败本质</th><th>所在层</th><th>能否推理时引导治</th></tr></thead>
 <tbody>
-<tr><td class="name">1</td><td>新旧物体混合时，模型偏向抓<b>见过的</b>旧物体，忽略指令要的新物体</td><td><span class="tag t1">Familiarity Bias</span> 走捷径，旧物体特征激活强、抢占动作</td><td>感知→动作的<b>注意力/选择</b>层</td><td class="yes">✓ 有戏</td></tr>
+<tr><td class="name">1</td><td>新旧物体混合时，模型偏向抓<b>见过的</b>旧物体，忽略指令要的新物体</td><td><span class="tag t1">Object grounding 断裂</span> 指令指代的新物体没 ground 到对应 patch（P0：指令拉不动新物，非"被旧物抢"）</td><td>感知→动作的<b>注意力/grounding</b>层</td><td class="yes">✓ 有戏</td></tr>
 <tr><td class="name">2</td><td>训练没见过的行为（如开抽屉），测试做不出</td><td><span class="tag t2">行为先验缺失</span> 动作分布里根本没有该技能</td><td><b>动作先验</b>层（真盲区）</td><td class="no">✗ 治不了</td></tr>
 <tr><td class="name">3</td><td>方位指令（"放左边"）跟随不了</td><td><span class="tag t3">语言-空间 grounding 缺失</span> 训练没有方位映射</td><td>语言→空间 grounding</td><td class="mid">⚠ 部分可治</td></tr>
 <tr><td class="name">4</td><td>夹爪开合不匹配（小→大物体）</td><td>数据覆盖不足（二值化可绕过）</td><td>动作细节</td><td>—</td></tr>
@@ -85,7 +88,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 </div>
 
 <div class="lead">
-<b>关键洞察：</b>四类失败<b>不在同一层</b>——没有一个万能方法同时治全部。第 2 类（行为先验缺失）是引导类方法的<b>绝对盲区</b>（引导只能在已有分布里重加权，造不出没学过的动作），也是 VERA/InSight 等大机构主战场。<b>第 1 类（familiarity bias）+ 第 3 类（方位指令）</b>是推理时引导能发力的、且所有竞品都没正面做的空白。
+<b>关键洞察（2026-06-29 修正）：</b>四类失败<b>不在同一层</b>——没有万能方法同时治全部。第 2 类（行为先验缺失）是引导类的<b>绝对盲区</b>，第 4 类是数据问题。<b>第 1 类 + 第 3 类</b>是推理时引导能发力、且全竞品空白的区域。P0 探针进一步把这两类的共同病灶定为 <b>指令-视觉 grounding 在 attention 层断裂</b>：第 1 类 = 指令指代的<b>新物体</b>没 ground 到对应 patch；第 3 类 = 指令的<b>空间关系</b>没 ground 到目标区域。统一为 <b>Instruction Grounding Failure</b>（attention 层可观测、可注入修复）。
 </div>
 
 <!-- ===================== PART 2: 当前解决方案 ===================== -->
@@ -102,6 +105,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <tr><td class="name">DWYS/SEAL<div class="yr">2026 NVIDIA/CMU</div></td><td>动作空间（重采样）</td><td>VLM 验证执行对齐</td><td>推理-动作落差</td><td class="no">✗ 纯仿真</td><td>依赖 forward rollout oracle、二值丢弃</td></tr>
 <tr><td class="name">ARRO<div class="yr">2026 UTN</div></td><td>像素层（mask）</td><td>Grounding DINO+SAM2</td><td>视觉干扰</td><td class="yes">✓</td><td>目标物体不能 mask，新物体 OOD 够不到</td></tr>
 <tr><td class="name">Goal-VLA<div class="yr">2026 NUS</div></td><td>替代 VLA（几何planner）</td><td>VLM 生成目标图</td><td>语义（零样本）</td><td class="yes">✓</td><td>rigid-grasp 假设，做不了接触丰富任务</td></tr>
+<tr><td class="name">LA4VLA<div class="yr">2026 Lin等</div></td><td><b>训练时</b>（去视觉 LA 预训练）</td><td>重构数据+预训练范式</td><td>视觉捷径/方向鲁棒性</td><td class="yes">✓</td><td>需重训；自认<b>不解决物体定位/目标选择</b></td></tr>
 <tr><td class="name">VERA<div class="yr">2026 MIT</div></td><td>替代 VLA（14B 视频+Jacobian IDM）</td><td>视频 rollout + 图像雅可比反解</td><td>行为泛化（大算力）</td><td class="yes">✓</td><td>14B 重型，替代而非引导冻结 VLA</td></tr>
 <tr><td class="name">SuSIE/GHIL-Glue<div class="yr">2023-24 Berkeley</div></td><td>目标层（生成+过滤）</td><td>图像编辑 subgoal</td><td>语义+低层精度</td><td class="yes">✓</td><td>需训低层策略、SuSIE 不检验可达性</td></tr>
 </tbody>
@@ -109,42 +113,45 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 </div>
 
 <div class="lead">
-<b>共同盲区：</b>所有竞品都在<b>动作/目标/像素</b>层操作——<b>没有一篇进入 VLA 内部（注意力/表示层）做推理时 steering</b>。而真机第 1 类"新旧混合偏向旧"的失败机制恰在 VLA 内部注意力分配——这是它们集体够不到的。
+<b>共同盲区：</b>竞品分布在<b>动作空间</b>（VLS/OmniGuide/DISCO/DynaGuide 加几何/能量梯度）、<b>行为层</b>（DWYS/SEAL 验证 CoT 忠实度，但依赖 forward rollout、纯仿真）、<b>训练时</b>（LA4VLA 重构数据消除视觉捷径，但需重训、不管目标选择）、或<b>替代 VLA</b>（Goal-VLA/VERA 自搭 pipeline）——<b>没有一篇进入冻结 VLA 内部的注意力/表示层做推理时 grounding 注入</b>。DWYS 的 "plan 说抓 soup、实际抓 cream cheese"（Embodied CoT Faithfulness Gap）正是 grounding 断裂在行为层的体现，与我们 P0 的红 soup 现象同源——但它在行为层验证、我们在 attention 层源头修复。
 </div>
 
 <!-- ===================== PART 3: 推荐课题 ===================== -->
 <h2>三、推荐课题</h2>
 
 <div class="rec">
-<h3>指令感知的注意力引导（Instruction-Aware Attention Steering for Frozen VLA）</h3>
+<h3>OOD 指令-grounding 注入（Instruction-Grounding Injection for Frozen VLA）</h3>
 
-<p><b>解决的 OOD</b>：第 1 类（新旧物体混合偏向旧）+ 第 3 类（方位指令跟随不了）——真机高频、全竞品空白</p>
+<p><b>解决的 OOD</b>：第 1 类（指令指代 OOD 新物体抓不到）+ 第 3 类（方位指令跟随不了）——统一为 Instruction Grounding Failure，真机高频、全竞品空白</p>
+
+<p class="note">2026-06-29 重写：原"familiarity-bias steering"经 P0 四重证据证伪（要旧物时注意力本就在旧物上、未被劫持；要新物时是"拉不动"而非"被抢"）。新方向打在真正的病灶上。</p>
 
 <h3>理由（为什么选这个）</h3>
 <div class="moat">
-<div class="m"><b>① 真空白</b><br>所有竞品在动作/目标/像素层；无人在 VLA <b>内部注意力</b>做推理时 steering（NLP 有 activation steering，机器人空白）</div>
-<div class="m"><b>② 真机高频</b><br>"新旧混合偏向旧"是部署 VLA 的必然场景（真机一手观察），不是实验室构造的 toy problem</div>
-<div class="m"><b>③ 不 overclaim</b><br>诚实说解决选择层 OOD（第1/3类），不碰行为先验 OOD（第2类，那是引导盲区+大机构主场）</div>
-<div class="m"><b>④ 可视化强</b><br>主图=引导前后 attention map 对比（从关注旧物体→关注新物体），一张图讲清故事</div>
+<div class="m"><b>① 真空白</b><br>竞品在动作/行为/训练时/或替代 VLA；无人在冻结 VLA <b>内部注意力层</b>做推理时 grounding 注入</div>
+<div class="m"><b>② 病灶已坐实</b><br>P0 双口径（image→image / lang→image）证明：指令指 OOD 物时该物 attention 纹丝不动（红物 AOR 0.012 vs 旧物 0.079），grounding 断裂可量化</div>
+<div class="m"><b>③ 不 overclaim</b><br>诚实解决 grounding 选择层 OOD（第1/3类），不碰行为先验 OOD（第2类，引导盲区+大机构主场）</div>
+<div class="m"><b>④ 可视化强</b><br>主图=注入前后 attention overlay（指令拉不动新物→注入后落到新物 patch）+ 逐层 AOR + 多指代条形图（P0 已产出）</div>
 </div>
 
-<h3>初步方案</h3>
+<h3>初步方案（external grounding injection，非 amplification）</h3>
 <div class="flow">观测 I_t + 指令 l
- → VLM 解析"指令要抓的目标物体是哪个/放到哪个方位"
- → 在冻结 π0.5 视觉编码器的 attention 层：
-     对"目标物体对应的 token"加权提升（或抑制旧物体 token）
- → VLA 的动作生成"听到"了正确物体的信号
- → 动作自然从"抓旧物体"变成"抓指令要的新物体"
+ → 外部开放词表检测/分割（SAM / OWL-ViT / Grounding-DINO）
+     定位"指令指代的目标物体/方位区域" → patch 集合 S
+ → 在冻结 π0.5 的有效层窗口注入/抬升 S 的 attention：
+     P0 已定位 = 第 1 次 prefix forward 的 Gemma 第 9–17 层（lang→image 口径）
+ → 修复断裂的指令-grounding，让动作"看到"指令指代的目标
+ → 验证动作是否真的改对（不能只看 attention 图）
 
-不改 π0.5 权重、不重训、不加动作空间梯度
-本质 = 推理时 attention re-weighting，从 NLP activation steering 迁移到机器人</div>
+不改 π0.5 权重、不重训、不加动作梯度、training-free
+关键：对 OOD 物没有现成指令信号可"放大"，必须从外部"注入"</div>
 
-<h3>分阶段路线（由简到复杂）</h3>
+<h3>分阶段路线（2026-06-29 重写，由简到复杂）</h3>
 <div class="stages">
-<div class="stage"><span class="s">P0 ★</span> 探针实验：可视化 attention（生死命门）</div>
-<div class="stage"><span class="s">P1</span> VLM 定位目标 → attention 提升目标 token</div>
-<div class="stage"><span class="s">P2</span> 方位指令 → 空间位置 attention 强化</div>
-<div class="stage"><span class="s">P3</span> IBVS 思想：object 误差→注意力修正</div>
+<div class="stage"><span class="s">P0 ✓</span> 探针：已完成。familiarity-bias 证伪，grounding 断裂坐实</div>
+<div class="stage"><span class="s">P0.5 ★命门</span> 写回因果验证：注入 attention 能否改变 action（最高优先级）</div>
+<div class="stage"><span class="s">P1-A</span> object grounding 注入：检测目标→注入→降 wrong-object rate</div>
+<div class="stage"><span class="s">P0-B/P1-B</span> spatial grounding（第二阶段，object 跑通后）</div>
 <div class="stage"><span class="s">P4</span> 松灵双臂真机验证</div>
 </div>
 
@@ -153,10 +160,10 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <table style="min-width:500px">
 <thead><tr><th>维度</th><th>预期</th></tr></thead>
 <tbody>
-<tr><td class="name">第 1 类</td><td>新旧混合场景：引导后正确抓取新物体的成功率从 baseline 的低值（偏向旧物体）<b>显著提升</b></td></tr>
-<tr><td class="name">第 3 类</td><td>方位指令（"放左边"）执行正确率从接近 0 提升到可用水平</td></tr>
-<tr><td class="name">对比竞品</td><td>在 ARRO mask 不了、VLS/OmniGuide 几何引导不解决的"物体选择 OOD"上胜出</td></tr>
-<tr><td class="name">成本</td><td>不重训 VLA，本机 3090 即可验证，复用开源 VLM + 冻结 π0.5</td></tr>
+<tr><td class="name">第 1 类</td><td>指令指 OOD 新物体场景：注入后正确抓取目标物的成功率 / 降低 wrong-object rate <b>显著改善</b></td></tr>
+<tr><td class="name">第 3 类</td><td>方位指令（"放左边"）执行正确率从接近 0 提升到可用水平（第二阶段，可能用 action-target bias）</td></tr>
+<tr><td class="name">对比竞品</td><td>在 ARRO mask 不了、VLS/OmniGuide 动作空间几何引导不解决的"指令-grounding 断裂"上胜出</td></tr>
+<tr><td class="name">成本</td><td>不重训 VLA，本机 3090 可验证，复用开源检测器 + 冻结 π0.5</td></tr>
 </tbody>
 </table>
 </div>
@@ -166,14 +173,14 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <table style="min-width:400px">
 <thead><tr><th>会议</th><th>概率</th><th>前提</th></tr></thead>
 <tbody>
-<tr><td class="name">CoRL 2027</td><td class="mid">中</td><td>P0 探针+P1 引导+P4 真机全做出，且效果显著</td></tr>
-<tr><td class="name">RSS 2027</td><td class="mid">中</td><td>同上，且故事讲得好（NLP→机器人迁移的 novelty）</td></tr>
+<tr><td class="name">CoRL 2027</td><td class="mid">中</td><td>P0.5 写回因果通过 + P1 注入降 wrong-object + P4 真机，且统一框架覆盖第1+3类</td></tr>
+<tr><td class="name">RSS 2027</td><td class="mid">中</td><td>同上，且故事讲好（grounding 断裂诊断 + training-free 注入修复）</td></tr>
 <tr><td class="name">ICRA 2027</td><td class="yes">中高</td><td>仿真+简单真机验证即可</td></tr>
-<tr><td class="name">RA-L</td><td class="yes">高</td><td>探针实验+一个引导方法+真机验证</td></tr>
+<tr><td class="name">RA-L</td><td class="yes">高</td><td>P0 诊断 + 一个注入方法 + 真机验证</td></tr>
 </tbody>
 </table>
 </div>
-<p class="note">关键 go/no-go：P0 探针实验（新旧混合时 attention 是否偏向旧物体）。通过后才投入后续。</p>
+<p class="note">下一道 go/no-go：P0.5 写回因果验证——注入 attention 后 action 是否对注入方向有可重复、可解释、非随机的变化。不过则转 feature steering / visual prompt / action-target bias / 轻量 adapter。</p>
 </div>
 
 <!-- ===================== PART 4: 和竞品的区别 ===================== -->
@@ -183,18 +190,19 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 <table>
 <thead><tr><th>竞品</th><th>操作层</th><th>我们的差异</th></tr></thead>
 <tbody>
-<tr><td class="name">DynaGuide / VLS / OmniGuide</td><td>动作空间梯度</td><td>我们在 VLA <b>内部注意力层</b>，源头纠正"听哪个物体"</td></tr>
-<tr><td class="name">ARRO</td><td>像素层 mask</td><td>ARRO mask 任务<b>无关</b>像素；我们 steer 任务<b>核心</b>物体间的注意力竞争</td></tr>
-<tr><td class="name">DWYS/SEAL</td><td>动作重采样+验证</td><td>SEAL 依赖 forward rollout oracle；我们不需仿真，直接 steer 注意力</td></tr>
-<tr><td class="name">Goal-VLA / VERA</td><td>替代 VLA</td><td>我们<b>保留</b>冻结 VLA 学习先验，轻量引导不替代</td></tr>
-<tr><td class="name">SuSIE / GHIL-Glue</td><td>目标层</td><td>我们不生成子目标，直接 steer VLA 内部（不需训低层策略）</td></tr>
-<tr><td class="name">NLP Activation Steering</td><td>LLM 内部</td><td>首次从 NLP 迁移到 <b>VLA/机器人</b>场景，解决物理 OOD 而非 safety</td></tr>
+<tr><td class="name">DynaGuide / VLS / OmniGuide</td><td>动作空间梯度</td><td>它们在动作空间加几何/能量 reward；我们在 VLA <b>内部注意力层</b>注入指令 grounding，正交且更轻</td></tr>
+<tr><td class="name">DWYS/SEAL</td><td>行为层（重采样+验证）</td><td>它们靠 forward rollout 验证 CoT 忠实度（纯仿真）；我们不需 rollout，直接在 attention 层源头修复 grounding</td></tr>
+<tr><td class="name">LA4VLA</td><td>训练时（去视觉预训练）</td><td>同病不同药：它训练时重构数据+重训、且不管目标选择；我们<b>推理时注入、不重训</b>，正补它放弃的物体/空间 grounding</td></tr>
+<tr><td class="name">ARRO</td><td>像素层 mask</td><td>ARRO mask 任务<b>无关</b>像素；我们注入任务<b>核心</b>目标的 grounding</td></tr>
+<tr><td class="name">Goal-VLA / VERA</td><td>替代 VLA</td><td>我们<b>保留</b>冻结 VLA 学习先验，轻量注入不替代</td></tr>
+<tr><td class="name">SuSIE / GHIL-Glue</td><td>目标层</td><td>我们不生成子目标，直接在 VLA 内部注入 grounding（不需训低层策略）</td></tr>
+<tr><td class="name">NLP Activation Steering</td><td>LLM 内部</td><td>首次从 NLP 迁移到 <b>VLA/机器人</b>，修复物理 OOD 的指令 grounding 而非 safety 对齐</td></tr>
 </tbody>
 </table>
 </div>
 
 <div class="lead">
-<b>一句话核心 claim：</b>VLA 在新旧物体混合部署场景的失败，不是因为"不认得新物体"，而是训练高频物体的<b>注意力优势（familiarity bias）劫持了动作生成</b>。我们首次在推理时 steering VLA 的<b>内部视觉注意力</b>，把"听哪个物体"的选择权从训练频率还给指令语义。
+<b>一句话核心 claim（2026-06-29 重写）：</b>VLA 在 OOD 部署场景的失败，根因不是"不认得新物体"、也不是"注意力被熟悉物体劫持"（后者已被 P0 四重证据证伪），而是<b>指令-视觉 grounding 只在训练分布内的指代上有效——一旦指令含 OOD 语义成分（新物体/新颜色/新指代/新方位），指令无法在 attention 层把视觉注意力路由到对应目标，注意力退化为近均匀</b>。我们首次在推理时用外部检测/分割把"指令指代目标"定位到 patch，并在冻结 VLA 内部注意力层 <b>training-free</b> 地注入该先验，修复断裂的指令-grounding。
 </div>
 
 <!-- ===================== PART 5: IBVS 启发 ===================== -->
@@ -214,7 +222,7 @@ footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:v
 
 <!-- ===================== FOOTER ===================== -->
 <footer>
-VLMGuide 课题规划 · OOD 全景对比 · 基于 DynaGuide/VLS/OmniGuide/DISCO/SEAL/ARRO/Goal-VLA/VERA/NJF/SuSIE/GHIL-Glue/InSight 等 20+ 篇论文深度分析 + 松灵双臂真机观察 · 2026-06-26 · 讨论稿
+VLMGuide 课题规划 · OOD 全景对比 · 基于 VLS/DWYS-SEAL/Goal-VLA/LA4VLA/DynaGuide/OmniGuide/DISCO/ARRO/VERA/SuSIE/GHIL-Glue 等 20+ 篇论文深度分析 + 松灵双臂真机观察 + P0 探针实验四重证据 · 2026-06-29 更新（P0 后重写为 OOD 指令-grounding 注入） · 讨论稿
 </footer>
 </div>
 </body>
