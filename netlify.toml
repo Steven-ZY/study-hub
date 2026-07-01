@@ -1,0 +1,4 @@
+# Netlify 部署配置 — 纯静态站点，根目录直接发布
+[build]
+  publish = "."
+  command = ""
