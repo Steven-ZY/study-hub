@@ -83,6 +83,12 @@
       "target": "pages/papers/ood_robot_manipulation_papers.html",
       "title": "机器人操作 OOD 论文图谱",
       "category": "vla"
+    },
+    {
+      "source": "~/projects/dwys + ~/projects/paper/2026-DWYS/DWYS.pdf",
+      "target": "pages/papers/dwys_seal.html",
+      "title": "DWYS/SEAL 运行时推理-动作对齐验证",
+      "category": "vla"
     }
   ]
 }

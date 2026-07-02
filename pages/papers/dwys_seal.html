@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWYS/SEAL — 运行时推理-动作对齐验证</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 15px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.85em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.79em;line-height:1.5}
+code{color:var(--green)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-family:'Cambria Math',serif;font-size:1.02em;margin:10px 0;color:var(--text)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--border);font-size:0.84em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin:14px 0}
+.box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:0.82em;text-align:center}
+.arrow{color:var(--accent);font-size:1.3em}
+.tag{display:inline-block;font-size:0.72em;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.t-code{background:rgba(52,211,153,0.15);color:var(--green)}
+.t-paper{background:rgba(96,165,250,0.15);color:var(--accent)}
+.t-note{background:rgba(244,114,182,0.15);color:var(--pink)}
+</style>
+</head>
+<body>
+<header>
+<h1>DWYS / SEAL — 运行时推理-动作对齐验证</h1>
+<p class="sub">Do What You Say: Steering VLA Models via Runtime Reasoning-Action Alignment Verification · NVIDIA / CMU / U. Utah / U. Sydney · arXiv 2510.16281v2 (2026)</p>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="overview">速览</div>
+<div class="tab" data-tab="motiv">动机</div>
+<div class="tab" data-tab="method">方法·SEAL</div>
+<div class="tab" data-tab="mechanism">核心机制</div>
+<div class="tab" data-tab="train">训练·推理</div>
+<div class="tab" data-tab="exp">实验</div>
+<div class="tab" data-tab="code">代码印证</div>
+<div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="quiz">自测</div>
+</div>
+
+
+<!-- ========== Tab: 速览 ========== -->
+<div class="panel active" id="panel-overview">
+<div class="section">
+<h2>一句话</h2>
+<p><b>推理 VLA 模型虽然能生成正确的文本计划，但其动作执行常常"言行不一"——尤其在 OOD 场景。</b>SEAL 提出一种<b>无需重训练</b>的运行时策略引导方法：同时采样多条动作序列，在仿真中前向预测结果，用预训练 VLM (GPT-4o) 验证哪条动作最<span class="hl">忠实</span>于模型自身的文本计划，再选择该动作执行。把策略的"动作多样性"从错误来源变为优势来源。</p>
+</div>
+<div class="note"><b>本页可靠性</b><span class="tag t-paper">🟢PDF核对</span><span class="tag t-code">🟢代码核对</span>：方法公式与实验数字逐条核对自 PDF 原文 (<code>arXiv:2510.16281v2</code>)；运行时流程与 VLM Verifier prompt 核对自仓库 <code>examples/libero/eval_libero_reason_sample.py</code>。解读为学习者视角。<br>原文：<a href="https://arxiv.org/abs/2510.16281" target="_blank" style="color:var(--accent)">arXiv</a> · <a href="https://yilin-wu98.github.io/steering-reasoning-vla/" target="_blank" style="color:var(--accent)">项目页</a> · 代码仓库：<code>~/projects/dwys</code>(基于 openpi)</div>
+<div class="section">
+<h2>速览卡片</h2>
+<table>
+<tr><th>项</th><th>内容</th></tr>
+<tr><td>标题</td><td>Do What You Say: Steering VLA Models via Runtime Reasoning-Action Alignment Verification</td></tr>
+<tr><td>单位</td><td>NVIDIA / Carnegie Mellon University / University of Utah / University of Sydney</td></tr>
+<tr><td>核心问题</td><td><b>Embodied CoT Faithfulness Gap</b>：推理 VLA 文本推理正确，但动作执行偏离计划</td></tr>
+<tr><td>核心方法</td><td>Best-of-N 运行时策略引导 + VLM Verifier (SEAL = Steering for Embodied reasoning-Action aLignment)</td></tr>
+<tr><td>Base Model</td><td>基于 pi0 架构的推理 VLA (pi0-reason)，使用 &lt;think&gt;/&lt;act&gt; token 自适应切换</td></tr>
+<tr><td>三阶段</td><td>Hypothesize (采样 K 条动作) → Predict (并行仿真预测结果) → Verify (VLM 评分对齐)</td></tr>
+<tr><td>关键结果</td><td>行为组合任务 +15%；ID 任务 94-97%；Visual-Viewpoint OOD +17%；推理时延 347ms (K=10)</td></tr>
+<tr><td>训练开销</td><td>pi0-reason 微调 20h/8xA100；SEAL 推理阶段无需任何额外训练</td></tr>
+<tr><td>特性</td><td>Training-free · Model-agnostic · 与 Best-of-N / test-time compute scaling 兼容</td></tr>
+</table>
+</div>
+</div>
+
+
+<!-- ========== Tab: 动机 ========== -->
+<div class="panel" id="panel-motiv">
+<div class="section">
+<h2>推理 VLA 为何"言行不一"？</h2>
+<p>大型 VLA 模型（如 pi0）通过视觉-语言骨干 + 动作头实现通用机器人控制。为解决长时序任务中的累积误差和复杂指令跟随问题，<b>推理 VLA</b>（Reasoning VLA）在动作生成前先产生中间文本计划——这是 LLM 中 Chain-of-Thought 的具身版本。</p>
+<h3>核心现象</h3>
+<p>然而，即使文本计划完全正确，生成的动作序列仍可能偏离计划目标：</p>
+<ul>
+<li>文本说"抓起字母汤罐头"，动作却去抓了旁边的奶油奶酪</li>
+<li>在 ID 场景下文本生成准确率 100%，但任务成功率仅 ~90%</li>
+<li>随着训练数据规模增大(多样性增加)，动作空间更发散，偏离更严重</li>
+</ul>
+<h3>Embodied CoT Faithfulness Gap</h3>
+<p>作者将此类比 LLM 中的 "CoT Faithfulness" 问题：</p>
+<div class="eq">LLM CoT Faithfulness: 推理步骤是否真正反映了产生答案的过程？<br>Embodied CoT Faithfulness: <b>文本计划描述的目标是否被后续低层动作可靠实现？</b></div>
+<h3>为什么不直接重训练？</h3>
+<ul>
+<li>先前工作 [10] 已发现：VLM 骨干的文本规划能力(可通过少量数据高效微调) <b>远强于</b> 动作生成能力(需要大量数据)</li>
+<li>直接优化对齐 loss 不可行：环境动力学 P 不可微、动作采样过程不可微</li>
+<li>建模"对齐 reward"也很难：需要复杂的上下文语义判断（非简单的 heuristic）</li>
+</ul>
+</div>
+<div class="key"><b>核心洞察</b>：推理能力强 + 动作能力弱 = 文本计划是"免费的"锚点。只需在运行时验证哪个动作样本最忠实于该锚点即可。</div>
+<div class="section">
+<h3>与先前运行时引导方法对比</h3>
+<table>
+<tr><th>方法</th><th>验证信号</th><th>粒度</th><th>OOD 泛化</th></tr>
+<tr><td>V-GPS [16]</td><td>离线 Q-function</td><td>固定长度 action chunk</td><td>弱 (MUSE encoder 泛化差)</td></tr>
+<tr><td>RoboMonkey [6]</td><td>微调 VLM + 合成偏好标签</td><td>action chunk</td><td>中 (verifier 未开源)</td></tr>
+<tr><td><b>SEAL (本文)</b></td><td><b>预训练 VLM (GPT-4o)</b></td><td><b>变长 plan-level 动作序列</b></td><td><b>强 (利用 VLM 常识)</b></td></tr>
+</table>
+<p>SEAL 的关键区别：不是验证单个短 chunk，而是验证<b>整条从当前计划开始到下次 think 的完整动作序列</b>。这自然对应"一个子任务"的粒度。</p>
+</div>
+</div>
+
+
+<!-- ========== Tab: 方法 ========== -->
+<div class="panel" id="panel-method">
+<div class="section">
+<h2>SEAL 方法概览</h2>
+<p>SEAL = <b>S</b>teering for <b>E</b>mbodied reasoning-<b>A</b>ction a<b>L</b>ignment。一个三阶段的运行时策略引导框架，无需任何额外训练。</p>
+<div class="flow">
+<div class="box">生成新文本计划 l̂<sup>r</sup></div>
+<div class="arrow">→</div>
+<div class="box" style="border-color:var(--accent)"><b>Hypothesize</b><br>采样 K 条变长动作序列</div>
+<div class="arrow">→</div>
+<div class="box" style="border-color:var(--green)"><b>Predict</b><br>K 个并行仿真前向执行</div>
+<div class="arrow">→</div>
+<div class="box" style="border-color:var(--orange)"><b>Verify</b><br>VLM 打分选最优序列</div>
+<div class="arrow">→</div>
+<div class="box">执行选中的动作序列</div>
+</div>
+</div>
+
+<div class="section">
+<h2>形式化定义</h2>
+<h3>对齐目标</h3>
+<p>在每个推理步（文本计划更新后），SEAL 最小化对齐损失：</p>
+<div class="eq">L<sub>align</sub>(θ; o<sub>t</sub>, l̂<sup>r</sup>, l<sub>g</sub>) = −E<sub>P, π<sub>θ</sub><sup>r-vla</sup></sub> [ R<sub>align</sub>(o<sub>t:t+H</sub>, l̂<sup>r</sup>) ]</div>
+<p>其中 R<sub>align</sub> 衡量未来观察 o<sub>t:t+H</sub> 是否满足文本计划 l̂<sup>r</sup> 描述的子目标。</p>
+<h3>两大挑战</h3>
+<ul>
+<li><b>直接优化不可行</b>：环境动力学 P 不可微 + 策略采样不可微 → 无法反向传播</li>
+<li><b>Reward 建模困难</b>：R<sub>align</sub> 需要复杂语义判断 → 不能用 heuristic 近似</li>
+</ul>
+<h3>SEAL 的近似解</h3>
+<ul>
+<li><b>挑战 1</b> → 用 <span class="hl">Best-of-N 采样</span> 绕过直接优化</li>
+<li><b>挑战 2</b> → 用 <span class="hl">预训练 VLM (GPT-4o)</span> 作为 R<sub>align</sub> 的 proxy</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>Stage 1: Hypothesize（假设）</h2>
+<p>从 pi0-reason 模型并行采样 K=10 条候选动作序列：</p>
+<div class="eq">A<sub>t</sub> = { â<sub>t</sub><sup>(k)</sup> ~ π<sub>θ</sub><sup>r-vla</sup>(· | o<sub>t</sub>, l̂<sup>r</sup>, l<sub>g</sub>) }<sub>k=1..K</sub></div>
+<p>关键特性：</p>
+<ul>
+<li>每条序列是<b>自回归</b>生成（不是一次前向），每步动作需要当前观察作为输入</li>
+<li>序列长度<b>可变</b>：当模型生成 &lt;think&gt; token 时该序列结束</li>
+<li>不同序列可能有不同长度 H<sub>k</sub>，对应模型自适应地认为"这个子任务需要多少步"</li>
+<li>使用 <b>KV cache</b> 加速批量推理</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>Stage 2: Predict（预测）</h2>
+<p>维护 K=10 个向量化仿真环境，与 Hypothesize 阶段交错执行：</p>
+<ul>
+<li>Hypothesize 生成 â<sub>t'</sub> → Predict 步进得到 ô<sub>t'+1</sub> → 作为下一步的输入</li>
+<li>形成紧耦合的 <b>Hypothesize-Predict 循环</b></li>
+<li>仿真提供高保真环境动力学（真实部署时用 world model / digital twin 替代）</li>
+<li>所有 K 个环境<b>并行运行</b></li>
+</ul>
+</div>
+
+<div class="section">
+<h2>Stage 3: Verify（验证）</h2>
+<p>利用预训练 VLM (GPT-4o) 作为对齐 reward 的 proxy R<sub>ψ</sub>：</p>
+<ul>
+<li>输入：初始 agent-view 图像 I<sub>1</sub> + 候选序列最终 agent-view Î<sub>t+Hk</sub> + 最终 wrist-view + 文本子计划 l̂<sup>r</sup></li>
+<li>输出：二值分数 R<sub>ψ</sub> ∈ {0, 1}，指示动作结果是否满足计划</li>
+<li>选择得分最高的序列执行</li>
+</ul>
+<div class="key"><b>异步验证 + Early Exit</b>：由于各序列长度不同、完成时间不同，一旦某序列完成就<b>异步</b>发送给 VLM 验证。一旦有序列通过验证即<b>立即执行</b>，无需等所有 K 条都完成。这大幅降低延迟。</div>
+</div>
+</div>
+
+
+<!-- ========== Tab: 核心机制 ========== -->
+<div class="panel" id="panel-mechanism">
+<div class="section">
+<h2>机制 1：推理 VLA 的 &lt;think&gt;/&lt;act&gt; 自适应切换</h2>
+<p>基于 pi0 架构（PaliGemma VLM + flow-matching action expert），增加推理能力：</p>
+<ul>
+<li><b>&lt;think&gt; token</b>：触发文本推理模式，后续 token 解码为文本（交叉熵 loss）</li>
+<li><b>&lt;act&gt; token</b>：触发动作模式，后续 token 输入 action head（flow-matching loss）</li>
+<li>模型自适应决定何时切换：生成变长动作序列，自然对应子任务粒度</li>
+</ul>
+<div class="eq">L<sub>r-vla</sub> = λ<sub>reason</sub> · L<sub>reason</sub> + λ<sub>act</sub> · L<sub>act</sub><br>L<sub>reason</sub> = −log π(l<sub>j</sub><sup>r</sup> | o<sub>t</sub>, l<sub>j-1</sub><sup>r</sup>, l<sub>g</sub>)&emsp;&emsp;L<sub>act</sub> = −Σ log π(a<sub>t'</sub> | o<sub>t'</sub>, l<sub>j</sub><sup>r</sup>, l<sub>g</sub>)</div>
+<p>λ<sub>reason</sub> = λ<sub>act</sub> = 0.5</p>
+</div>
+
+<div class="section">
+<h2>机制 2：推理标注管线 (自动)</h2>
+<p>无需人工标注子任务边界（不同于 OneTwoVLA [8] 需要手动标注）：</p>
+<div class="flow">
+<div class="box">LIBERO 演示视频<br>(agent-view, 10fps)</div>
+<div class="arrow">→</div>
+<div class="box" style="border-color:var(--accent)">Gemini 2.5 Pro<br>生成子计划 + 关键时间点</div>
+<div class="arrow">→</div>
+<div class="box" style="border-color:var(--green)">结构化标注<br>Plans / Done / Now</div>
+</div>
+<p>标注格式（用于训练数据）：</p>
+<pre><code>Plans: 1. Pick the alphabet soup  2. Place it in the basket  3. Pick the butter  4. Place it in the basket
+What I have done: Pick the alphabet soup, Place it in the basket
+Now I need to do: Pick the butter</code></pre>
+<p>每段标注包含 (l̂<sub>j</sub><sup>r</sup>, t'<sub>j</sub>)：子计划文本 + 该子任务结束的时间步。一个子任务的结束即下一个的开始。</p>
+</div>
+
+<div class="section">
+<h2>机制 3：VLM Verifier 的 Prompt 设计</h2>
+<p>GPT-4o 作为 verifier，使用结构化 prompt 引导逐步推理：</p>
+<ol>
+<li><b>识别目标物体</b>：在初始图像中找到目标物体，描述其位置</li>
+<li><b>分类判断</b>：
+<ul>
+<li>抓取任务 → 检查 gripper 是否夹持正确形状(盒/罐)的物体</li>
+<li>放置任务 → 检查物体是否在/上目标位置</li>
+<li>关闭任务 → 检查物体是否完全关闭</li>
+</ul>
+</li>
+<li><b>输出格式</b>：<code>Verification: Success</code> 或 <code>Verification: Failure</code></li>
+</ol>
+<div class="warn"><b>Verifier 失败模式</b>：(1) gripper-object 接触判断不准（wrist-view 对 GPT-4o 是 OOD）；(2) 严重遮挡场景下准确率下降。</div>
+</div>
+
+<div class="section">
+<h2>机制 4：Embodied CoT Faithfulness 的形式化</h2>
+<p>传统 VLA 的训练目标：</p>
+<div class="eq">L<sub>vla</sub>(θ; D) = Σ −log π<sub>θ</sub><sup>vla</sup>(a<sub>t</sub> | o<sub>t</sub>, l<sub>g</sub>)</div>
+<p>推理 VLA 将此分解为文本生成 + 条件动作生成，但两者<b>并未显式优化对齐</b>：</p>
+<div class="key"><b>关键洞察</b>：标准 SFT 训练（Eq. 2）只是让模型模仿专家的文本和动作，并没有明确约束"动作结果必须实现文本描述的目标"。对齐 loss (Eq. 3) 是一个额外的、训练时未被优化的目标 → 需要在运行时强制执行。</div>
+</div>
+
+<div class="section">
+<h2>机制 5：Runtime Scaling Law</h2>
+<p>增加候选样本数 K 可以直接提升性能（类似 LLM 中 test-time compute scaling）：</p>
+<table>
+<tr><th>K</th><th>ID 成功率</th><th>Compose 成功率</th><th>推理延迟 (ms)</th></tr>
+<tr><td>1</td><td>89%</td><td>38%</td><td>147</td></tr>
+<tr><td>2</td><td>92%</td><td>44%</td><td>167</td></tr>
+<tr><td>5</td><td>96%</td><td>48%</td><td>246</td></tr>
+<tr><td>10</td><td>97%</td><td>53%</td><td>347</td></tr>
+</table>
+<p>延迟分解：Batch Action Sampling 86→184ms (亚线性)；VLM Verification 61→163ms (线性)。瓶颈在 VLM 查询时间 (每次 7-10s，但异步执行)。</p>
+</div>
+</div>
+
+
+<!-- ========== Tab: 训练·推理 ========== -->
+<div class="panel" id="panel-train">
+<div class="section">
+<h2>训练：pi0-reason 模型</h2>
+<h3>架构</h3>
+<ul>
+<li>骨干：PaliGemma (gemma_2b VLM + SigLIP ViT)</li>
+<li>动作专家：gemma_300m action expert (flow-matching)</li>
+<li>输入图像：agent-view + wrist-view，分辨率 224x224</li>
+<li>Prediction Horizon: 16；Action Horizon: 5</li>
+</ul>
+<h3>训练超参</h3>
+<table>
+<tr><th>参数</th><th>值</th></tr>
+<tr><td>Training Batch Size</td><td>128</td></tr>
+<tr><td>Training Steps</td><td>30000</td></tr>
+<tr><td>Max Token Length</td><td>415</td></tr>
+<tr><td>λ<sub>reason</sub> / λ<sub>act</sub></td><td>0.5 / 0.5</td></tr>
+<tr><td>Image Size</td><td>224 × 224 × 3</td></tr>
+<tr><td>GPU</td><td>8× A100 (~20h) 或 8× H100 (~10h)</td></tr>
+</table>
+<h3>三个训练数据集</h3>
+<table>
+<tr><th>数据集</th><th>任务数</th><th>Episode数</th><th>用途</th></tr>
+<tr><td>LIBERO-10-R</td><td>10</td><td>379</td><td>最小集，基线对比</td></tr>
+<tr><td>LIBERO-100-Basket-R</td><td>16</td><td>761</td><td>中等集，技能组合测试</td></tr>
+<tr><td>LIBERO-100-R</td><td>82 (full LIBERO-100)</td><td>4338</td><td>最大集，全面评估</td></tr>
+</table>
+<p>所有数据集都通过 Gemini 2.5 Pro 自动标注推理信息。</p>
+</div>
+
+<div class="section">
+<h2>推理：SEAL 三阶段流程</h2>
+<h3>完整推理循环</h3>
+<ol>
+<li><b>模型生成 &lt;think&gt;</b> → 产出文本计划 l̂<sup>r</sup>（如 "Now I need to: Pick the alphabet soup"）</li>
+<li><b>Hypothesize</b>：从同一模型并行采样 K=10 条动作序列（batch inference with KV cache）</li>
+<li><b>Predict</b>：在 K 个并行 LIBERO 环境中前向执行（每步需要环境给新 observation）</li>
+<li><b>Verify</b>：异步地，每条序列完成（生成 &lt;think&gt;）即发送至 GPT-4o 验证</li>
+<li><b>Early Exit</b>：第一条通过验证的序列即被选中执行在真实/执行环境</li>
+<li><b>状态同步</b>：将所有并行环境重置为选中序列的最终状态 → 进入下一个 think-act 循环</li>
+</ol>
+<h3>推理延迟优化</h3>
+<ul>
+<li>Batch sampling：10 条序列仅 ~2.1x 单条的时间（高效 batch + KV cache）</li>
+<li>异步 VLM 验证：序列生成和 VLM query 并行进行</li>
+<li>Early exit：不需要等所有 K 条都完成和验证</li>
+<li>总延迟 K=10 时 347ms，低于 RoboMonkey [6] 的 ~520ms</li>
+</ul>
+</div>
+
+<div class="section">
+<h2>对比：训练与推理开销</h2>
+<table>
+<tr><th>组件</th><th>开销</th><th>说明</th></tr>
+<tr><td>pi0 vanilla 微调</td><td>~6h / 8xA100</td><td>无推理标注</td></tr>
+<tr><td>pi0-reason 微调</td><td>~20h / 8xA100</td><td>含推理标注的 SFT</td></tr>
+<tr><td>SEAL 推理</td><td>+0 训练</td><td>纯运行时，无额外训练</td></tr>
+<tr><td>VLM Verifier</td><td>GPT-4o API</td><td>每个推理步 K 次 API 调用(异步)</td></tr>
+</table>
+</div>
+</div>
+
+
+<!-- ========== Tab: 实验 ========== -->
+<div class="panel" id="panel-exp">
+<div class="section">
+<h2>评测设置</h2>
+<p>所有实验在 LIBERO 仿真基准上进行，每个任务 50 trials。三类评测：</p>
+<ul>
+<li><b>In-Distribution (ID)</b>：LIBERO-10 的 10 个长时序任务</li>
+<li><b>OOD Robustness</b>：4 种分布偏移变体（语义×2 + 视觉×2）</li>
+<li><b>Behavior Composition</b>：新行为组合任务（重组已学技能）</li>
+</ul>
+<h3>Baselines</h3>
+<table>
+<tr><th>方法</th><th>描述</th></tr>
+<tr><td>pi0</td><td>Vanilla VLA，无推理，无验证</td></tr>
+<tr><td>pi0-V-GPS</td><td>离线 Q-function + best-of-K action chunk</td></tr>
+<tr><td>pi0-reason</td><td>推理 VLA（SEAL 的 base model），无验证</td></tr>
+<tr><td><b>SEAL</b></td><td>pi0-reason + 运行时 VLM 验证</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>主结果 1：ID + 行为组合</h2>
+<table>
+<tr><th>训练集</th><th>评测</th><th>pi0</th><th>pi0-V-GPS</th><th>pi0-reason</th><th class="hl">SEAL</th></tr>
+<tr><td rowspan="2">LIBERO-10-R</td><td>ID (LIBERO-10)</td><td>85</td><td>90</td><td>92</td><td class="hl">96</td></tr>
+<tr><td>LIBERO-10-Compose</td><td>14</td><td>17</td><td>18</td><td>16</td></tr>
+<tr><td rowspan="2">LIBERO-100-Basket-R</td><td>ID (LIBERO-10)</td><td>85</td><td>89</td><td>86</td><td class="hl">94</td></tr>
+<tr><td>Basket-Compose</td><td>11</td><td>13</td><td>23</td><td class="hl">26</td></tr>
+<tr><td rowspan="2">LIBERO-100-R</td><td>ID (LIBERO-10)</td><td>85</td><td>87</td><td>89</td><td class="hl">97</td></tr>
+<tr><td>LIBERO-100-Compose</td><td>16</td><td>16</td><td>38</td><td class="hl">53</td></tr>
+</table>
+<div class="key"><b>关键发现</b>：数据越多越多样 → 推理模型越强 → SEAL 增益越大（53% vs 38% on LIBERO-100-Compose，+15%）。pi0/V-GPS 在行为组合上基本不涨。</div>
+</div>
+
+<div class="section">
+<h2>主结果 2：OOD 鲁棒性</h2>
+<p>训练集 = LIBERO-100-R，评测 4 种 OOD 变体：</p>
+<table>
+<tr><th>评测</th><th>pi0</th><th>pi0-V-GPS</th><th>pi0-reason</th><th class="hl">SEAL</th></tr>
+<tr><td>ID (LIBERO-10)</td><td>85</td><td>87</td><td>89</td><td class="hl">97</td></tr>
+<tr><td>Lang-Rephrase</td><td>73</td><td>71</td><td>86</td><td class="hl">95</td></tr>
+<tr><td>Lang-Object-Property</td><td>72</td><td>81</td><td>81</td><td class="hl">91</td></tr>
+<tr><td>Visual-Scene</td><td>84</td><td>83</td><td>91</td><td class="hl">98</td></tr>
+<tr><td>Visual-Viewpoint</td><td>28</td><td>23</td><td>25</td><td class="hl">45</td></tr>
+</table>
+<div class="key"><b>亮点</b>：(1) 语义 OOD：推理模型天然鲁棒，SEAL 进一步过滤动作误差→95%。(2) Visual-Viewpoint 是最难的 OOD，所有方法大幅下降，但 SEAL 仍比次优好 +17%。</div>
+<div class="warn"><b>观察</b>：视觉偏移（特别是视角+背景变化）远比语义偏移更具挑战性。当前 VLA 在 viewpoint 泛化上仍有很大改进空间。</div>
+</div>
+
+<div class="section">
+<h2>主结果 3：为什么 V-GPS 在 OOD 失败？</h2>
+<p>对比实验展示了 Q-function verifier vs VLM verifier 的核心差异：</p>
+<ul>
+<li><b>ID 场景</b>：两者都能正确评估进度（Q 值稳定上升）</li>
+<li><b>行为组合 OOD</b>：Q-function (MUSE encoder) 对新指令过估计 Q 值 → 选错动作（把白杯子抓了结果拿了错误的杯子也给高分）</li>
+<li><b>VLM verifier</b>：利用常识推理正确识别错误 → 引导策略选正确动作</li>
+</ul>
+</div>
+</div>
+
+
+<!-- ========== Tab: 代码印证 ========== -->
+<div class="panel" id="panel-code">
+<div class="section">
+<h2>代码结构概览</h2>
+<p>仓库基于 <a href="https://github.com/Physical-Intelligence/openpi" target="_blank" style="color:var(--accent)">openpi</a> 框架改造，核心改动集中在推理 VLA 数据集 + 运行时 SEAL 评测脚本。</p>
+<table>
+<tr><th>路径</th><th>功能</th></tr>
+<tr><td><code>src/openpi/models/pi0.py</code></td><td>pi0 模型定义 (PaliGemma + action expert)</td></tr>
+<tr><td><code>src/openpi/policies/libero_reason_dataset.py</code></td><td>推理标注数据集的加载与处理</td></tr>
+<tr><td><code>examples/libero/eval_libero_reason_sample.py</code></td><td><b>SEAL 核心实现：Hypothesize-Predict-Verify 循环</b></td></tr>
+<tr><td><code>examples/libero/prompt_template_verifier.txt</code></td><td>VLM verifier 的完整 prompt 模板</td></tr>
+<tr><td><code>examples/libero/vec_env.py</code></td><td>K 个并行环境 (Predict 阶段)</td></tr>
+<tr><td><code>examples/libero/utils.py</code></td><td>工具函数：图像编码、API key、环境构建</td></tr>
+<tr><td><code>eval_scripts/launch_libero_vla_reason_sample.sh</code></td><td>SEAL 评测启动脚本</td></tr>
+<tr><td><code>scripts/train.py</code></td><td>pi0-reason 训练入口</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>Hypothesize + Predict 循环 (代码印证)</h2>
+<p><code>eval_libero_reason_sample.py</code> 中的核心循环：</p>
+<pre><code># 并行推理 K 条动作序列 (batch_size = K)
+obs_dict_np, previous_obs = get_pi_obs_dict_batch(all_obs, previous_obs, task_description, args)
+policy_return_dict = client.infer(obs_dict_np)  # WebSocket batch inference
+
+# 模型返回 isthinking=True → 该序列完成(生成了&lt;think&gt; token)
+policy_is_thinking = policy_return_dict.get('isthinking', [False]*args.batch_size)
+
+# 当某序列完成时，提取其子目标文本
+plan_string = policy_return_dict['thought'][i].split('Now I need to do:')[-1]
+
+# 并行环境步进 (Predict)
+vec_obs, vec_reward, vec_done, vec_info = vec_env.step(actions, np.arange(args.batch_size))</code></pre>
+<p>关键实现细节：模型服务使用 WebSocket 通信，batch 中每个元素独立 autoregressive 生成。当 &lt;think&gt; 出现时标记该序列完成。</p>
+</div>
+
+<div class="section">
+<h2>Verify 阶段 (代码印证)</h2>
+<p><code>test_reset_flags()</code> 函数实现异步 VLM 验证：</p>
+<pre><code># 异步验证 - 后台线程并行调用 GPT-4o
+def test_reset_flags(reset_indices, initial_image, agent_images, wrist_images, instruction_text, args):
+    # 为每个候选序列启动独立线程
+    for idx in current_indices:
+        thread = threading.Thread(target=test_single_index, args=(int(idx),), daemon=True)
+        threads.append(thread)
+        thread.start()
+
+# 单序列验证: 发送 3 张图 + subtask 文本给 GPT-4o
+def test_single_index(idx):
+    b64_initial_image = optimize_image_for_api(initial_image, max_size=512)
+    b64_image = optimize_image_for_api(agent_images[idx][-1], max_size=512)
+    b64_wrist_image = optimize_image_for_api(wrist_images[idx][-1], max_size=512)
+    prompt = get_prompt(subtask_goal, "verifier")
+    
+    response = session.post("https://api.openai.com/v1/responses", json={
+        "model": "gpt-4o-2024-08-06",
+        "input": [{"role": "user", "content": [
+            {"type": "input_text", "text": prompt},
+            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64_initial_image}"},
+            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64_image}"},
+            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{b64_wrist_image}"},
+        ]}]
+    })
+    # 解析 "Verification: Success" / "Verification: Failure"
+    verification_result = result_text.split("\n")[-1].strip()
+    if "SUCCESS" in verification_result: results[idx] = True</code></pre>
+</div>
+
+<div class="section">
+<h2>Early Exit + 状态同步 (代码印证)</h2>
+<pre><code># 检查后台验证结果 (非阻塞)
+def check_background_verification() -> int | None:
+    return _background_verification_result.get_nowait()  # 返回通过验证的 index
+
+# 主循环中: 一旦有结果立即执行
+verified_idx = check_background_verification()
+if verified_idx is not None:
+    # 用选中序列的动作在执行环境中前进
+    for selected_action in batch_action_plan[reset_index]:
+        exec_obs, exec_reward, exec_done, exec_info = env_exec.step(selected_action)
+    
+    # 同步所有并行环境到选中状态
+    env_reset_sim_state = vec_env.get_sim_state(reset_index)[0]
+    vec_env.set_init_state(np.repeat(env_reset_sim_state, K, axis=0), np.arange(K))</code></pre>
+</div>
+
+<div class="section">
+<h2>数据集处理 (代码印证)</h2>
+<p><code>libero_reason_dataset.py</code> 中推理标注数据的加载逻辑：</p>
+<pre><code>class LiberoReasonDataset(LeRobotDataset):
+    # 关键参数
+    self.use_reasoning = data_config.use_reasoning  # 是否使用推理标注
+    self.pred_reasoning_prob = 0.7  # 70% 概率预测推理内容
+
+def _get_thought(thoughts: list[dict], step: int) -> dict:
+    """根据当前时间步获取对应的推理标注"""
+    for thought in thoughts:
+        if thought['start_step'] <= step < thought['end_step']:
+            return thought  # 返回包含 text plan 的 dict</code></pre>
+<p>训练时以 70% 概率让模型预测推理文本（对应 &lt;think&gt; 段），30% 跳过（增强鲁棒性）。</p>
+</div>
+</div>
+
+
+<!-- ========== Tab: 评价与启发 ========== -->
+<div class="panel" id="panel-takeaway">
+<div class="section">
+<h2>核心贡献</h2>
+<ol>
+<li><b>Embodied CoT Faithfulness Gap 形式化</b>：首次明确定义推理-动作错位问题，将其与 LLM 中 CoT faithfulness 做类比</li>
+<li><b>Training-free 运行时引导</b>：不需要额外训练任何组件，只利用已有 VLA + off-the-shelf VLM</li>
+<li><b>Plan-level Best-of-N</b>：验证粒度与语义粒度对齐（一个完整子任务），而非 chunk-level</li>
+<li><b>正向 scaling</b>：数据越多、候选越多 → 效果越好（与 LLM test-time compute scaling 呼应）</li>
+<li><b>推理标注管线 + OOD 基准</b>：开源推理标注数据集 + LIBERO 的 OOD 扩展</li>
+</ol>
+</div>
+
+<div class="section">
+<h2>局限性</h2>
+<table>
+<tr><th>局限</th><th>具体表现</th><th>可能方向</th></tr>
+<tr><td>依赖 Base VLA 质量</td><td>如果 K 条采样中没有任何好的动作序列，验证无用</td><td>更好的 base model / 更大 K</td></tr>
+<tr><td>VLM 可靠性</td><td>GPT-4o 对细粒度 gripper-object 接触/遮挡判断不准</td><td>针对具身场景微调 verifier</td></tr>
+<tr><td>延迟开销</td><td>每个 reasoning step 需额外 VLM API 调用 (7-10s per query)</td><td>蒸馏 verifier / 量化</td></tr>
+<tr><td>仿真依赖</td><td>Predict 阶段需要环境模型（当前用 LIBERO sim）</td><td>learned world model / digital twin</td></tr>
+<tr><td>仅限 sim 验证</td><td>论文只在 LIBERO 仿真中验证，无真实机器人实验</td><td>world model 支撑的真实部署</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>启发与延伸</h2>
+<h3>对 VLA 研究的启发</h3>
+<ul>
+<li><b>"言行一致"作为新指标</b>：不仅看任务成功率，还应衡量推理-动作对齐度</li>
+<li><b>推理能力 ≠ 控制能力</b>：VLM backbone 的语言规划远强于 action head 的执行 → 两者的 gap 是关键瓶颈</li>
+<li><b>多样性是双刃剑</b>：更大数据 → 更多样的 action distribution → 更容易偏离 → 但也意味着好样本更容易出现 → Best-of-N 受益</li>
+</ul>
+<h3>方法论启发</h3>
+<ul>
+<li><b>Test-time compute for robotics</b>：与 LLM 的 BoN / MCTS 类似，机器人推理也可受益于推理时更多计算</li>
+<li><b>Verifier 的选择</b>：通用 VLM 作 verifier 在 OOD 场景优于 domain-specific Q-function</li>
+<li><b>Plan-level vs Chunk-level 验证</b>：语义对齐的自然粒度是"一个子任务"，不是固定 chunk 长度</li>
+</ul>
+<h3>与其他工作的连接</h3>
+<ul>
+<li><b>OneTwoVLA [8]</b>：SEAL 的 base reasoning VLA 基于此架构（&lt;think&gt;/&lt;act&gt; 切换）</li>
+<li><b>RoboMonkey [6]</b>：类似 test-time scaling 思路，但用微调 VLM 而非通用 VLM 做验证</li>
+<li><b>V-GPS [16]</b>：Q-function 引导，chunk 粒度，OOD 泛化弱</li>
+<li><b>FORESIGHT [21] (同作者)</b>：VLM-in-the-loop policy steering via latent alignment</li>
+</ul>
+</div>
+</div>
+
+
+<!-- ========== Tab: 自测 ========== -->
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测题（6 题）</h2>
+<div id="quiz-area">
+
+<div class="quiz-q" data-answer="2">
+<p><b>Q1. SEAL 的 "Embodied CoT Faithfulness Gap" 指的是什么？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. 模型无法生成正确的文本计划</li>
+<li data-idx="1">B. 模型的动作执行速度太慢导致延迟</li>
+<li data-idx="2">C. 文本计划描述的目标未被后续低层动作可靠实现</li>
+<li data-idx="3">D. 训练数据中缺少推理标注</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：Embodied CoT Faithfulness Gap 是指推理 VLA 生成的文本计划（reasoning）与其实际动作执行（action）之间的错位——即使文本计划正确，动作仍可能偏离目标。这类似 LLM 中 CoT faithfulness 问题的具身版本。</div>
+</div>
+
+<div class="quiz-q" data-answer="1">
+<p><b>Q2. SEAL 为什么不直接通过反向传播优化对齐 loss？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. 计算资源不够</li>
+<li data-idx="1">B. 环境动力学不可微 + 动作采样不可微，梯度无法回传</li>
+<li data-idx="2">C. VLM 没有提供梯度接口</li>
+<li data-idx="3">D. 对齐 loss 太小无法收敛</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：论文明确指出两个根本挑战：(1) 环境的真实动力学 P 不可微分，(2) 从策略中采样动作的过程不可微分。因此无法用 backprop 直接优化 L_align。这促使作者采用 Best-of-N 采样来绕过。</div>
+</div>
+
+<div class="quiz-q" data-answer="3">
+<p><b>Q3. SEAL 的 Verify 阶段使用什么作为 alignment reward 的 proxy？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. 离线 Q-function (IQL)</li>
+<li data-idx="1">B. 微调后的 reward model</li>
+<li data-idx="2">C. 手工设计的 heuristic function</li>
+<li data-idx="3">D. 预训练的通用 VLM (GPT-4o)</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：SEAL 使用 off-the-shelf 的 GPT-4o 作为 verifier，输入初始图像+最终图像+文本计划，输出二值判断（Success/Failure）。不需要任何微调。这比 Q-function 有更好的 OOD 泛化能力。</div>
+</div>
+
+<div class="quiz-q" data-answer="0">
+<p><b>Q4. 为什么 V-GPS (Q-function) 在行为组合 OOD 场景下失败？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. MUSE encoder 对新指令/新组合无法泛化，导致 Q 值过估</li>
+<li data-idx="1">B. Q-function 的训练数据太少</li>
+<li data-idx="2">C. action chunk 太长导致验证不准</li>
+<li data-idx="3">D. 仿真环境中 Q-function 不可用</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：V-GPS 使用 MUSE sentence encoder 来编码指令，该 encoder 无法泛化到训练时未见过的新指令组合。在 OOD 场景中，Q-function 对错误动作也给出高分（过估计），无法提供有效引导信号。相反，GPT-4o 凭借常识推理仍能正确判断。</div>
+</div>
+
+<div class="quiz-q" data-answer="2">
+<p><b>Q5. SEAL 的 Runtime Scaling Law 中，增加 K 的主要瓶颈是什么？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. 仿真环境的并行数量限制</li>
+<li data-idx="1">B. GPU 显存不足以支撑大 batch</li>
+<li data-idx="2">C. VLM verifier 的每次查询耗时 (7-10s)，虽然异步但线性增长</li>
+<li data-idx="3">D. 动作序列的自回归生成速度</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：论文分析表明 Batch Action Sampling 仅亚线性增长 (10x samples → 2.1x time)，但 VLM Verification 线性增长。每次 GPT-4o query 耗时 7-10s（异步执行所以不完全阻塞），但这仍是主要延迟来源。</div>
+</div>
+
+<div class="quiz-q" data-answer="1">
+<p><b>Q6. 为什么 SEAL 在大数据集上增益更大？</b></p>
+<ul class="quiz-opts">
+<li data-idx="0">A. 大数据让 VLM verifier 更准确</li>
+<li data-idx="1">B. 更多样的训练数据 → 更多样的动作分布 → K 个样本中更容易包含好的候选</li>
+<li data-idx="2">C. 大数据集减少了 VLM 的 hallucination</li>
+<li data-idx="3">D. 训练时间更长使得模型收敛更好</li>
+</ul>
+<div class="quiz-expl" style="display:none"><b>解析</b>：SEAL 的核心逻辑是"从 K 个样本中选最好的"。当基础模型在更大更多样的数据上训练后，其动作分布更加多样化（既有好样本也有坏样本）。多样性越高，K 个采样中包含至少一个好候选的概率越大。这就是为什么 SEAL 把 "action diversity" 从 error source 变为 strength。</div>
+</div>
+
+</div>
+<button id="quiz-submit" style="margin:18px 0;padding:10px 28px;border-radius:8px;border:1px solid var(--accent);background:var(--surface2);color:var(--accent);cursor:pointer;font-size:0.95em">提交答案</button>
+<div id="quiz-result" style="margin-top:12px"></div>
+</div>
+</div>
+
+
+</div><!-- end container -->
+
+<!-- Tab切换 JS -->
+<script>
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+</script>
+
+<!-- Quiz JS -->
+<script>
+(function(){
+  const qs=document.querySelectorAll('.quiz-q');
+  qs.forEach(q=>{
+    q.querySelectorAll('.quiz-opts li').forEach(li=>{
+      li.style.cursor='pointer';li.style.padding='6px 10px';li.style.borderRadius='6px';li.style.margin='4px 0';
+      li.addEventListener('click',()=>{
+        q.querySelectorAll('.quiz-opts li').forEach(l=>{l.style.background='';l.style.border=''});
+        li.style.background='var(--surface2)';li.style.border='1px solid var(--accent)';
+        q.dataset.selected=li.dataset.idx;
+      });
+    });
+  });
+  document.getElementById('quiz-submit').addEventListener('click',()=>{
+    let score=0,total=qs.length;
+    qs.forEach(q=>{
+      const sel=q.dataset.selected,ans=q.dataset.answer;
+      const expl=q.querySelector('.quiz-expl');
+      q.querySelectorAll('.quiz-opts li').forEach(li=>{
+        if(li.dataset.idx===ans){li.style.background='rgba(52,211,153,0.15)';li.style.border='1px solid var(--green)';}
+        else if(li.dataset.idx===sel&&sel!==ans){li.style.background='rgba(248,113,113,0.15)';li.style.border='1px solid var(--red)';}
+      });
+      if(sel===ans)score++;
+      expl.style.display='block';
+    });
+    document.getElementById('quiz-result').innerHTML=`<span style="font-size:1.1em;color:var(--green)">得分：${score}/${total}</span>`;
+  });
+})();
+</script>
+
+<script src="../../assets/studyhub.js"></script>
+</body>
+</html>
