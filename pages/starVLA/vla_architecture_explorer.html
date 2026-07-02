@@ -893,6 +893,64 @@ VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
     <p style="margin-top:8px"><b>本体数据结构</b>(action/state 各含)：effector(执行器: 力/位置) + end(末端: 角速度/朝向/位置/速度/力矩) + joint(关节: 电流/力矩/位置/速度) + robot(底盘: 朝向/速度) + waist(腰部, 真机)。数据需转成 LeRobot 格式训练。</p>
     <div class="key"><b>看点</b>：AgiBot 的动作/状态结构非常完整(执行器/末端/关节/底盘/腰全都有)，这正是"移动式双臂人形"平台的典型数据组织——对比单臂 Franka(只有末端+夹爪)，人形数据维度多得多。</div>
   </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent);margin-bottom:12px">12. 主流数据集的发布团队 <span style="color:var(--orange)">(外部整理)</span></h3>
+    <p>知道一个数据集出自哪个团队，能帮你判断它的风格、质量和适用场景：</p>
+    <table>
+      <tr><th>数据集/平台</th><th>发布团队/单位</th><th>定位</th></tr>
+      <tr><td>Open X-Embodiment</td><td>Google DeepMind 联合 20+ 高校</td><td>跨本体开源大联盟，统一 RLDS 格式</td></tr>
+      <tr><td>DROID</td><td>多实验室联合(Stanford/Berkeley 等)</td><td>分布式采集的 Franka 真机，多样性最高</td></tr>
+      <tr><td>BridgeData V2</td><td>UC Berkeley (RAIL 实验室)</td><td>WidowX 低成本机器人，语言标注丰富</td></tr>
+      <tr><td>RH20T</td><td>上海交通大学</td><td>接触丰富，含视觉+力觉+音频多模态</td></tr>
+      <tr><td>AgiBot World</td><td>智元机器人 (AgiBot)</td><td>百万级人形/双臂，视触觉+六维力</td></tr>
+      <tr><td>RoboMIND</td><td>国家地方共建具身智能创新中心等</td><td>大规模多任务真机</td></tr>
+      <tr><td>LIBERO</td><td>UT Austin (Lifelong Robot Learning)</td><td>终身学习基准，4 套件</td></tr>
+      <tr><td>CALVIN</td><td>Freiburg 大学</td><td>长程语言条件操作</td></tr>
+      <tr><td>RoboCasa</td><td>UT Austin + NVIDIA (Yuke Zhu 团队)</td><td>写实厨房场景</td></tr>
+      <tr><td>RoboTwin (1.0/2.0)</td><td>上海 AI Lab / 港大等 (RoboTwin 团队)</td><td>数字孪生双臂，含域随机化</td></tr>
+      <tr><td>SimplerEnv</td><td>UC San Diego / Google 等</td><td>仿真复现真机表现</td></tr>
+      <tr><td>Meta-World / RLBench</td><td>Meta(原) / Farama 维护；帝国理工</td><td>早期多任务基准</td></tr>
+      <tr><td>Behavior-1K</td><td>Stanford (李飞飞团队)</td><td>1000 任务，Omniverse 仿真</td></tr>
+      <tr><td>Ego4D / Ego-Exo4D</td><td>Meta AI 联合多机构</td><td>第一视角人类视频</td></tr>
+      <tr><td>FAST tokenizer</td><td>Physical Intelligence</td><td>动作 BPE tokenizer</td></tr>
+    </table>
+    <div class="note">规律：<b>Physical Intelligence(π系列)、NVIDIA(GR00T/Cosmos)、Google(RT/OXE)、UT Austin(RoboCasa/LIBERO)、Berkeley(Bridge/OpenVLA)、上海AI Lab(RoboTwin)</b> 是当前机器人操作数据/基准的主要产出团队。<span style="color:var(--orange)">(团队归属为外部整理，个别项目可能有多单位合作，严肃引用请核对论文作者单位)</span></div>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">13. 数据的特殊处理细节(实战踩坑) <span style="color:var(--green)">(源码核对: ImageWAM 仓库)</span></h3>
+    <p>拿到数据集不能直接喂模型，几乎都要做特殊处理。下面两个是最典型、最容易踩坑的：</p>
+
+    <h4>① no-ops(空操作)帧过滤 —— 防止模型"学会发呆"</h4>
+    <p><b>no-op 帧</b> = 机器人几乎不动的"怠速/停顿"帧(动作≈当前状态)。判定核心就一行：</p>
+    <pre><code># delta = action(目标位姿) - state(当前位姿)
+idle = (‖delta‖₂ ≤ ε)  或  (‖arm‖₂≤ε_arm 且 ‖gripper‖₂≤ε_grip)
+# 默认阈值 ε = 1e-3</code></pre>
+    <p>这类帧天然存在于采集数据里(episode 开头等待、双臂协调时一条臂等另一条、结尾静置)。<b>不过滤会让策略学到"预测原地不动"，推理时卡住/发呆(freeze)。</b></p>
+    <table>
+      <tr><th>数据集</th><th>no-ops 处理</th></tr>
+      <tr><td>LIBERO</td><td>官方发布时<b>已过滤</b>(目录名带 <code>no_noops</code>)，下载即用</td></tr>
+      <tr><td>RoboTwin</td><td>发布的是<b>原始数据</b>，需自己算过滤 json(ImageWAM 提供预计算脚本)</td></tr>
+    </table>
+    <div class="warn"><b>关键细节：episode 结尾的 idle 帧要故意保留!</b> 结尾的松爪/静置尾巴包含"如何正确收尾"的信息(释放/开爪/稳定放置)。只删中间停顿(连续≥5帧的 idle 段)，删掉结尾会让模型学不会成功收尾。这是 OpenPI(π₀ 团队)在 DROID 上的标准配方。</div>
+
+    <h4>② LIBERO 图像 180° 旋转 —— 训练/评测朝向必须一致</h4>
+    <p>LIBERO 基于 robosuite/MuJoCo，其 OpenGL 离屏渲染原点在左下角，导致原始渲染图<b>上下颠倒</b>。OpenVLA 团队确立了用 <code>img[::-1, ::-1]</code>(旋转180°)摆正的惯例，整个下游生态(LIBERO微调/FastWAM/ImageWAM)都继承。</p>
+    <pre><code>img[::-1]        = 上下翻转(vertical flip)
+img[:, ::-1]     = 左右翻转(镜像, 会破坏左右语义!)
+img[::-1, ::-1]  = 旋转180°(双轴反转) ← LIBERO/OpenVLA 用这个</code></pre>
+    <div class="key"><b>为什么用 180° 旋转而非镜像</b>：左右翻转(镜像)会破坏左右手/左右方向的语义；180° 旋转不会。<b>最致命的坑</b>：训练数据摆正了、评测时喂仿真器原始(倒的)图 → 方向反了，成功率直接崩到接近 0。用官方预处理数据+eval脚本无需手动处理；自己接原始 HDF5/仿真器时务必保证训练/评测两端朝向一致。</div>
+
+    <h4>③ 其它常见处理</h4>
+    <ul>
+      <li><b>动作归一化</b>：按 q01/q99 或 mean/std 归一化到 [-1,1]，训练/推理必须用同一份统计量</li>
+      <li><b>跨数据集清洗</b>(Qwen-RobotManip)：状态-动作趋势对齐、FK 一致性、极值过滤、视频-状态一致性——RoboMIND UR 数据 <b>81% episode 未通过</b>趋势对齐检查</li>
+      <li><b>格式统一</b>：转成 LeRobot format 供统一 dataloader 使用</li>
+      <li><b>动作空间对齐</b>：跨本体时用相机系 delta EEF(见 <a href="../papers/qwen_robotmanip.html" style="color:var(--accent)">Qwen-RobotManip</a>)</li>
+    </ul>
+    <div class="note">🔗 数据处理与训练细节延伸阅读：<a href="../vla-practice/vla_train_deploy.html" style="color:var(--accent)">VLA 训练与部署实战</a>(动作表示/tokenization/归一化) · <a href="../papers/qwen_robotmanip.html" style="color:var(--accent)">Qwen-RobotManip</a>(大规模数据清洗管线)</div>
+  </div>
 </div>
 
 <div class="panel" id="panel-deepdive">
