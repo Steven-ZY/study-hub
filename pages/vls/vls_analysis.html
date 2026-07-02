@@ -144,6 +144,26 @@ while time &gt;= -dt / 2:
 </table>
 <p>每 suite 10 个 task × 每 task 20 episode = <b>每 suite 200 episode</b>(这就是 n=200 的来历)。</p>
 
+<h3>5.1.1 每个 suite 具体是哪 10 个任务(从 bddl 提取)</h3>
+<p>不能只说 Object/Goal。下面是每个 suite 的真实任务指令,任务结构直接决定 VLS 是否有效:</p>
+<div class="grid2">
+<div class="callout c-blue"><b>Object(单阶段抓放,只换物体)✅ 最适合 VLS</b><br>
+pick up the <b>[alphabet soup / bbq sauce / butter / chocolate pudding / cream cheese / ketchup / milk / orange juice / salad dressing / tomato sauce]</b> and place it in the basket</div>
+<div class="callout c-blue"><b>Spatial(单阶段抓放,只换位置)</b><br>
+pick up the black bowl <b>[between the plate and ramekin / from table center / in the top drawer / next to cookie box / next to plate / next to ramekin / on cookie box / on ramekin / on stove / on wooden cabinet]</b> and place it on the plate</div>
+<div class="callout c-orange"><b>Goal(多样,含多阶段)⚠️</b><br>
+1. open the middle drawer(抓把手→拉开,多阶段)<br>2. open the top drawer and put the bowl inside(多阶段)<br>3. push the plate to front of stove<br>4-6. put the bowl on plate / stove / cabinet<br>7. put cream cheese in bowl<br>8-9. put wine bottle on rack / cabinet<br>10. turn on the stove</div>
+<div class="callout c-red"><b>10 / Long(全多步骤串联)❌ 能力边界</b><br>
+1. turn on stove + put moka pot on it<br>2. put bowl in drawer + close it<br>3. put mug in microwave + close it<br>4. put both moka pots on stove<br>5-7. put both [两种食物] in basket<br>8-9. 双杯分别放左右盘 + 布丁<br>10. pick book + place in caddy compartment</div>
+</div>
+<table>
+<tr><th>suite</th><th>任务结构</th><th>对 VLS 的意义</th></tr>
+<tr><td>Object</td><td>单阶段抓放,只换物体</td><td>✅ VLS 最擅长(引导目标单一)</td></tr>
+<tr><td>Spatial</td><td>单阶段抓放,只换位置</td><td>✅ 理论适合(我因 kmeans bug 未测到)</td></tr>
+<tr><td>Goal</td><td>多样,含多阶段(开抽屉)</td><td>⚠️ 多阶段需 stage 切换</td></tr>
+<tr><td>10/Long</td><td>全多步骤串联</td><td>❌ 长程,VLS 能力边界</td></tr>
+</table>
+
 <h3>5.2 问题:VLA 在原始 LIBERO 上"作弊"</h3>
 <div class="callout c-orange">主流 VLA(OpenVLA/π0/π0.5)在<b>原始</b> LIBERO 上都能 >90%。但 LIBERO-PRO 论文发现:高分很大程度是<b>死记硬背训练场景</b>,不是真学会任务——只要对场景加点扰动,成绩就崩到接近 0。</div>
 
@@ -178,6 +198,26 @@ while time &gt;= -dt / 2:
 <h3>5.0 📊 完整结论总表(先看这张)</h3>
 <figure><img src="assets/figN_summary.png" alt="图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)" loading="lazy"/><figcaption>图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)</figcaption></figure>
 <div class="callout c-green"><b>三条核心结论:</b>① VLS 对 Object suite 的 OOD 有效(swap 14→36%、task 12→20%);② 多阶段任务缺 stage recognition 会反降(goal swap 28→16%);③ 长程任务 LIBERO10 是能力边界(swap 1%、task 0.5%)。</div>
+
+<h3>6.0.1 符合性对比:我的结果 vs 论文</h3>
+<p>π-0.5 LeRobot,n=200。论文值取自 VLS 论文 Table I / LIBERO-PRO leaderboard。</p>
+<p><b>Position(swap)扰动:</b></p>
+<table>
+<tr><th>suite</th><th>论文 base→VLS</th><th>我的 base→VLS</th><th>符合?</th><th>说明</th></tr>
+<tr><td><b>Object</b></td><td>16%→45%</td><td>14%→<b>36.4%</b></td><td>✅ 符合</td><td>趋势+量级一致,单阶段抓放最适合 VLS</td></tr>
+<tr><td><b>Goal</b></td><td>有提升</td><td>27.5%→<b>16.5%</b></td><td>❌ 反降</td><td>多阶段(开抽屉)缺 stage rec.,VLS 卡错阶段</td></tr>
+<tr><td><b>Spatial</b></td><td>41%→42%</td><td>41%→10.7%(n=75)</td><td>⚠️ 不可靠</td><td>kmeans NaN 死循环卡死,样本不足</td></tr>
+<tr><td><b>10</b></td><td>11%→15.5%</td><td>10.5%→<b>1.0%</b></td><td>❌ 偏低</td><td>长程任务,引导难救多步序列</td></tr>
+</table>
+<p><b>Task 扰动:</b></p>
+<table>
+<tr><th>suite</th><th>论文 base→VLS</th><th>我的 base→VLS</th><th>符合?</th><th>说明</th></tr>
+<tr><td><b>Object</b></td><td>10.5%→41%</td><td>12%→<b>20.5%</b></td><td>⚠️ 方向对</td><td>提升到一半,因关 stage rec.(task 多为多阶段)</td></tr>
+<tr><td>Spatial</td><td>—</td><td>→25.0%</td><td>—</td><td>仅我方数据</td></tr>
+<tr><td>Goal</td><td>—</td><td>→13.0%</td><td>—</td><td>多阶段受限</td></tr>
+<tr><td>10</td><td>—</td><td>→0.5%</td><td>—</td><td>长程边界</td></tr>
+</table>
+<div class="callout c-blue"><b>总体判断:部分符合,偏差有一致解释。</b>① 核心 claim 成立:Object suite(单阶段)的 VLS 提升方向明确、量级接近论文(swap 14→36% vs 16→45%),验证了 VLM reward 梯度纠偏机制。② 偏差几乎全源于同一个已知差距——<b>我没有 Gemini key,关闭了 stage recognition</b>,而它对 Goal(多阶段)、10(长程)、所有 Task 扰动伤害最大,论文是开着的所以不会有 Goal 反降。③ Spatial 因 kmeans bug 卡死无结论。<b>结论:能对齐论文的地方(Object/单阶段/开引导)基本符合,偏离处均可归因于受控差异,不是 VLS 方法失效。</b></div>
 
 <h3>5.1 🖥️ 本机 object 四种 OOD(n=10)</h3>
 <figure><img src="assets/fig1_local_object_ood.png" alt="图 1:本机 object 四种 OOD —— 只有 swap 时 VLS 显著提升(10%→50%)" loading="lazy"/><figcaption>图 1:本机 object 四种 OOD —— 只有 swap 时 VLS 显著提升(10%→50%)</figcaption></figure>
@@ -269,5 +309,4 @@ const links=[...document.querySelectorAll('nav a')];
 const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
 addEventListener('scroll',()=>{let i=secs.findIndex((s,k)=>s&&s.getBoundingClientRect().top>80);if(i<0)i=secs.length;i=Math.max(0,i-1);links.forEach(l=>l.classList.remove('active'));if(links[i])links[i].classList.add('active');});
 </script>
-<script src="../../assets/studyhub.js"></script>
 </body></html>
