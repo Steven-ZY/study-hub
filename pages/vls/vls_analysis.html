@@ -56,7 +56,6 @@ tr:nth-child(even){background:rgba(255,255,255,0.02)}
 <a href="#idea">2. 创新方案</a>
 <a href="#code">3. 代码细节</a>
 <a href="#deploy">4. 部署记录</a>
-<a href="#resources">4.5 资源配置</a>
 <a href="#dataset">5. 数据集与评测</a>
 <a href="#results">6. 评测结果</a>
 <a href="#findings">7. 关键发现</a>
@@ -138,19 +137,6 @@ while time &gt;= -dt / 2:
 </table>
 </section>
 
-<section id="resources">
-<h2 class="sec">4.5 训练 / 评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:#34d399;vertical-align:middle">🟢仓库+论文核对</span></h2>
-<div class="callout c-blue"><b>核心特点:VLS 是 training-free。</b>它<b>不训练</b> base policy(冻结的生成式机器人策略,如 π-0.5),也不训练 VLM——VLM 通过 API 调用。所以"资源配置"的重点是<b>推理侧</b>,而非训练。</div>
-<table>
-<tr><th>组件</th><th>资源</th><th>说明</th></tr>
-<tr><td>Base policy 推理</td><td><b>单 GPU</b>(本机 RTX 3090 即可)</td><td>冻结的 flow-matching policy 做 10 步去噪,VLS 在去噪循环里插入引导</td></tr>
-<tr><td>VLM(reward/guidance)</td><td><b>API 调用</b>(GPT-4/GPT-4o/Claude-3.5，仓库 <code>vlm_agent.model</code>)</td><td>不占本地显存;但每去噪步都可能调 API → 长任务需把 httpx 日志压到 WARNING(见部署踩坑)</td></tr>
-<tr><td>全量并行评测</td><td>开发机 <b>8× RTX 4090</b></td><td>8 卡并行跑 LIBERO-PRO 各 suite;注意注入唯一输出目录避免视频混写</td></tr>
-<tr><td>训练</td><td><b>无</b></td><td>不微调 base policy、不训练 VLM —— 这正是 VLS 相对"收集 OOD 数据微调"的省钱卖点</td></tr>
-</table>
-<div class="callout c-orange"><b>成本画像</b>:VLS 的边际成本从"GPU 训练时间"转移到了"VLM API 调用次数"。<code>sample_batch_size</code>(粒子数)越大覆盖越好但越慢、API 调用越多;去噪步数×是否每步引导也决定 API 调用量。想省钱可减少引导步数(<code>start_ratio</code>)或粒子数。这与需要 8× A100 训练的 VLA、8× H200 训练的视频 WAM 形成鲜明对比——<b>VLS 用推理时算力+API 换掉了训练算力</b>。</div>
-</section>
-
 <section id="dataset">
 <h2 class="sec">5. 数据集与评测设定</h2>
 <p>看结果前先搞懂:我们在测什么、swap/task 是什么、为什么这些数字能验证 VLS。</p>
@@ -201,6 +187,18 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 </table>
 <div class="callout c-red">论文实测:π0.5 在原始 Object 上 98%,一加 Position 扰动掉到 17%,加 Task 扰动掉到 1%。<b>这就是 OOD 问题的量化体现。</b></div>
 
+<h4>5.3.1 我们用的两种扰动,到底改了什么?(看代码搞懂)</h4>
+
+<div class="callout c-orange"><b>Position(swap)= 把两个物体的初始位置对调,语言指令一个字不改。</b><br>
+机制(<code>perturbation.py: SwapPerturbator</code>):在 BDDL 初始状态里,把关注物体 A 和另一物体 B 的 <code>(On A 区域a)</code> / <code>(On B 区域b)</code> 对调成 <code>(On A 区域b)</code> / <code>(On B 区域a)</code>。<br>
+<b>举例(Spatial suite)</b>:原任务"pick up the black bowl <u>next to the plate</u> and place it on the plate"。原本黑碗在盘子旁、饼干盒在别处;swap 后把黑碗和饼干盒的位置对调 —— 现在盘子旁边是饼干盒,黑碗跑到别处去了。<b>指令没变,还是"拿盘子旁边的黑碗",但盘子旁边已经不是黑碗了。</b><br>
+<b>为什么能测 OOD</b>:如果 policy 是死记"移动到某个固定坐标去抓",它就会抓向旧位置(现在那儿是别的物体)→ 失败。真正理解任务的 policy 才会去找"黑碗现在在哪"。</div>
+
+<div class="callout c-red"><b>Task = 把整个任务换成另一个:指令、目标、关注物体同时全变。</b><br>
+机制(<code>perturbation.py: TaskPerturbator</code>):同时替换 BDDL 里的 <code>(:language)</code>(语言指令)+ <code>(:goal)</code>(目标完成状态)+ <code>(:obj_of_interest)</code>(关注物体)。<br>
+<b>举例(Object suite)</b>:原任务"pick up the <u>alphabet soup</u> and place it in the basket",桌上摆着同一批食物;task 扰动后指令变成"pick up the <u>butter</u>..." —— 场景物体没动,但要抓的目标从字母汤换成了黄油。<br>
+<b>为什么能测 OOD</b>:policy 不能靠"这个场景我见过、闭眼执行老动作",必须真的读懂新指令去抓新目标。这是最难的 OOD(论文里所有模型几乎都掉到 0-1%)。</div>
+
 <h3>5.4 为什么这能验证 VLS?</h3>
 <p>VLS 的卖点是「训练-free 推理时引导解决 OOD」。验证逻辑是一条清晰的对照链:</p>
 <pre><code>原始任务(90%+) ──加扰动──▶ baseline 崩溃(Object-swap 14%) ──加VLS引导──▶ 救回(36%)
@@ -210,14 +208,15 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 <li><b>VLS 相对 baseline 的提升</b>(swap 14→36%)= VLS 确实在纠正 OOD,而非碰运气</li>
 <li>用 <b>4 suite × 2 种扰动</b> 交叉测,能看出 VLS 在哪类 OOD 有效、哪类失效</li>
 </ul>
+<div class="callout c-green"><b>直接回答"OOD 是否被解决":部分解决。</b>Object suite(单阶段抓放)上 VLS 明显把 baseline 从崩溃救回(swap 14→36%、task 12→20%),说明 VLS 能解决"物体被移动/替换"这类 OOD;但多阶段任务(Goal)和长程任务(LIBERO10)上 VLS 无效甚至反降 —— 这类 OOD 还没被解决,是 VLS 的边界(详见第 7 节)。</div>
 <div class="callout c-blue">所以"swap 14%""task 12%"单看是低分,但意义是 <b>baseline 在特定 OOD 下的表现基线</b>,VLS 的价值体现在"比这个基线高多少"。数据来源:LIBERO-PRO(arXiv:2510.03827),我们用 Position(swap)+ Task 两种扰动 × 4 suite,对齐 VLS 论文协议。</div>
 </section>
 
 <section id="results">
 <h2 class="sec">6. 评测结果</h2>
-<p>评测基准:LIBERO-PRO,4 suite(Goal/Spatial/10/Object)× 两种 OOD(Position/swap、Task)。Policy:π-0.5 LeRobot 作者权重。VLM guidance backend:codex gpt-5.5。</p>
+<p>评测基准:LIBERO-PRO,4 suite(Goal/Spatial/10/Object)× 两种 OOD(Position/swap、Task)。Policy:π-0.5 LeRobot 作者权重。VLM guidance backend:codex gpt-5.5,stage recognition 关闭(无 Gemini key)。每 suite 200 episode。</p>
 
-<h3>5.0 📊 完整结论总表(先看这张)</h3>
+<h3>6.0 📊 完整结论总表(先看这张)</h3>
 <figure><img src="assets/figN_summary.png" alt="图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)" loading="lazy"/><figcaption>图 N:VLS 完整评测结论总表 —— 两种 OOD × 4 suite 的 baseline vs VLS(n=200)</figcaption></figure>
 <div class="callout c-green"><b>三条核心结论:</b>① VLS 对 Object suite 的 OOD 有效(swap 14→36%、task 12→20%);② 多阶段任务缺 stage recognition 会反降(goal swap 28→16%);③ 长程任务 LIBERO10 是能力边界(swap 1%、task 0.5%)。</div>
 
@@ -263,20 +262,20 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 <figure><img src="assets/figG_video_frames_comparison.png" alt="图 G:Swap OOD 关键帧对比(逐帧看动作差异)" loading="lazy"/><figcaption>图 G:Swap OOD 关键帧对比(逐帧看动作差异)</figcaption></figure>
 
 <h4>② Object-Task 扰动(单阶段抓放,VLS 最擅长)</h4>
-<p>VLS 20.5% &gt; baseline 12.0%。下面 3 成功 + 3 失败,可见 VLS 救回了不少 case,但仍有失败。</p>
-<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/object_episode_10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep10:成功抓取放篮</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_106_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep106:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_119_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep119:成功</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep100:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_101_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep101:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/task_object_baseline_ep10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> Baseline ep10:失败(对照)</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/task_object_vls_ep10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep10:成功(同任务对照)</figcaption></figure></div>
+<p><b>任务</b>:桌上摆着一排食物(字母汤/黄油/番茄酱/牛奶…),指令形如"pick up the <b>X</b> and place it in the basket"。task 扰动把要抓的目标 X 换成另一个物体(如 字母汤→黄油),场景不变但目标变了。<b>VLS 20.5% &gt; baseline 12.0%</b>,下面 3 成功 + 3 失败 + 1 组同任务对照。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/object_episode_10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:正确抓到新目标物体放入篮子</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_106_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:机械臂移向正确食物并抓取</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_119_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:完成抓取-放置</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:未抓到目标/超时</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:抓取偏差</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_101_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:未完成</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/task_object_baseline_ep10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> 对照-Baseline(无引导):抓向旧目标,失败</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/task_object_vls_ep10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> 对照-VLS(有引导):同一任务被救回,成功</figcaption></figure></div>
 
-<h4>③ Spatial-Task 扰动</h4>
-<p>VLS 25.0%,4 个 suite 里 task 扰动表现最好的。</p>
-<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_101_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep101:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_104_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep104:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_107_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep107:成功</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep100:失败</figcaption></figure></div>
+<h4>③ Spatial-Task 扰动(单阶段抓放,只换空间关系)</h4>
+<p><b>任务</b>:指令形如"pick up the black bowl <b>[在某处]</b> and place it on the plate",10 个任务是黑碗放在不同位置(桌心/抽屉里/炉子上/饼干盒旁…)。<b>VLS 25.0%</b>,是 task 扰动里表现最好的 suite。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_101_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:定位到黑碗并放上盘子</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_104_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:正确抓取黑碗</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_107_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:完成放置</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:抓错位置/超时</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:未完成</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:抓取偏差</figcaption></figure></div>
 
 <h4>④ Goal-Task 扰动(含多阶段任务,成功率低)</h4>
-<p>VLS 仅 13%。goal 含"开抽屉"等多阶段任务,缺 stage recognition 时 VLS 易卡在错误阶段,成功案例稀少。</p>
-<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_52_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep52:成功(少数)</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_89_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep89:成功(少数)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep11:失败</figcaption></figure></div>
+<p><b>任务</b>:goal suite 目标多样(开抽屉、把碗放到盘子/炉子/柜顶、开灯…),其中"open the middle drawer"这类是<b>多阶段</b>(先抓把手→再拉开)。<b>VLS 仅 13%</b> —— 缺 stage recognition 时,VLS 容易卡在第一阶段的 reward 上出不来,成功案例稀少(只有 2 个)。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_52_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:少数完成的案例之一</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_89_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS 成功:少数完成的案例之一</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:卡在错误阶段/超时</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:多阶段未推进</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:未完成</figcaption></figure></div>
 
-<h4>⑤ LIBERO10 / Long-Task 扰动(能力边界,全失败)</h4>
-<p>VLS 仅 0.5%,几乎无成功案例。长程任务(多步骤串联)是 VLS 的能力边界,下面 3 段全是失败。</p>
-<div class="vgrid"><figure class="vfail"><video controls preload="none" src="assets/long10_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败(长程)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败(长程)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep11:失败(长程)</figcaption></figure></div>
+<h4>⑤ LIBERO10 / Long-Task 扰动(长程任务,能力边界,全失败)</h4>
+<p><b>任务</b>:全是多步骤串联的长程任务(如"开炉子+把摩卡壶放上去"、"把碗放进抽屉+关上抽屉"、"把两种食物都放进篮子")。<b>VLS 仅 0.5%,几乎无成功。</b>长 horizon 下引导信号被稀释,VLS 救不回。下面 3 段全是失败。</p>
+<div class="vgrid"><figure class="vfail"><video controls preload="none" src="assets/long10_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:长程任务中途停滞</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:多步骤未完成</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS 失败:超时</figcaption></figure></div>
 
 <h3>6.5 📹 4 suite 视频墙(关键帧汇总)</h3>
 <p>把代表 rollout 抽帧拼成静态对比图,一屏看全 VLS 在 4 个 suite 的行为差异。</p>
