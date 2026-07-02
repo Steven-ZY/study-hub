@@ -111,7 +111,55 @@ while time &gt;= -dt / 2:
     x_t = x_t + dt * v_t                                 # 欧拉法解 ODE
     time = time + dt</code></pre>
 <div class="callout c-blue"><b>关键参数</b>(评测用值):guide_scale=80,start_ratio=0.8(后80%步引导),sigmoid_k=12,sigmoid_x0=0.7,去噪步数=10。复现数字偏低时,这几个是首要调节对象。</div>
-<h3>3.1 两个 VLM 调用点(关键:用不同的 key)</h3>
+
+<h3>3.1 reward 是怎么写的?梯度怎么从 reward 传到动作?</h3>
+<p>这是 VLS 最核心的一环。上面只写了"用 reward 梯度掰速度场",这里讲清 <b>reward 函数长什么样、loss/梯度怎么反传</b>。</p>
+
+<h4>① reward 不是一个数值,是 VLM 现场写的一段 Python 函数</h4>
+<p>每个 episode 开始,VLM(gpt-5.5)会<b>看 agentview 图像 + 读任务指令</b>,直接<b>生成一段 Python 代码</b> —— 一个 <code>stageN_guidance(keypoints, action_sequence)</code> 函数。下面是一次真实运行中 VLM 为"抓取奶油奶酪"生成的 reward 函数(原样,来自 <code>outputs/.../vlm_agent/stage1_guidance.txt</code>):</p>
+<pre><code>def stage1_guidance(keypoints, action_sequence):
+    # Guide the gripper to the cream cheese at keypoint 8.
+    # 从上往下抓:X-Y 对齐比 Z 更重要,给更大权重
+    T = action_sequence.shape[1]
+    timesteps = torch.arange(T, device=action_sequence.device)
+    final_start = int(0.7 * T)
+    # 轨迹后段(接近抓取)权重更高
+    weights = torch.where(timesteps &gt;= final_start, 3.0, 1.0)
+    weights = weights / weights.sum()
+
+    # VLM 看图后硬编码:目标是 8 号关键点(奶油奶酪)
+    target_idx = torch.tensor([8], device=keypoints.device)
+    target_pos = keypoints[target_idx][0]
+
+    # reward = 负的"轨迹到目标关键点的加权距离平方"
+    xy_dist = torch.norm(action_sequence[..., :2] - target_pos[:2], dim=-1)
+    z_dist  = torch.abs(action_sequence[..., 2] - target_pos[2])
+    weighted_dist_sq = 3.0 * (xy_dist ** 2) + (z_dist ** 2)
+    reward = -(weighted_dist_sq * weights).sum(dim=1)
+    return reward.mean()</code></pre>
+<div class="callout c-green"><b>看懂这个 reward:</b>它 = <b>负的「机械臂轨迹点 到 目标关键点 的加权距离」</b>。轨迹离目标越近 → 距离越小 → reward 越大(越接近 0)。所以"让 reward 变大"就等于"让动作靠近目标物体"。目标物体是哪个?VLM <b>看图</b>识别(图上关键点标了红色编号),<b>硬编码</b>那个编号(这里是 keypoint 8),不靠算。</div>
+
+<h4>② 关键点从哪来?</h4>
+<p><code>keypoints</code> 是场景里候选物体的 3D 坐标:SAM 分割出物体 → DINOv2/v3 提特征 → kmeans 聚类出若干候选关键点,每个标一个编号叠在图上给 VLM 看。VLM 的工作就是从这些编号里<b>用眼睛挑出目标物体对应的那个</b>。</p>
+
+<h4>③ loss/梯度怎么传:reward 对动作直接求导</h4>
+<p>reward 是纯 torch 运算、可微。VLS 把当前去噪中的动作设为可求导,让 reward 对它求梯度(<code>core/pi05_steer.py: _compute_keypoint_gradient</code>):</p>
+<pre><code>with torch.enable_grad():
+    sample_grad = sample.detach().requires_grad_(True)      # 让动作可求导
+    traj = self._sample_to_trajectory_3d(sample_grad)[..., :3]  # 动作→3D轨迹
+    reward = guidance_fn(keypoints_tensor, traj)            # 调 VLM 写的 reward
+    grad = torch.autograd.grad(reward, sample_grad)[0]      # reward 对动作求梯度
+    normalized_grad = grad / (grad.norm() + 1e-8)           # 归一化</code></pre>
+<div class="callout c-blue"><b>没有传统的"loss.backward()训练"</b> —— 这里是<b>推理时</b>对单步动作做一次 <code>autograd.grad</code>,拿到"动作往哪个方向调能让 reward 上升"的梯度,然后把这个梯度(乘自适应 scale)<b>加到 flow matching 的速度场上</b>:<code>v_t[...,:3] -= scale · normalized_grad</code>。模型权重全程不更新,只调正在生成的这条动作。</div>
+
+<h4>④ 完整链路一句话串起来</h4>
+<pre><code>VLM 看图+读指令 → 写出 reward 函数(硬编码目标关键点)
+   → reward = −距离(动作, 目标关键点)
+   → autograd.grad(reward, 动作) 得梯度
+   → 梯度 × 自适应scale 注入去噪速度场
+   → 动作被"推"向目标物体 → 纠正 OOD 下的错误</code></pre>
+
+<h3>3.2 两个 VLM 调用点(关键:用不同的 key)</h3>
 <table>
 <tr><th>用途</th><th>代码</th><th>用哪个 key</th><th>状态</th></tr>
 <tr><td>guidance/reward 生成</td><td>vlm_query/vlm_agent.py</td><td>codex(OpenAI 兼容)</td><td>✅ 正常</td></tr>
@@ -174,16 +222,6 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 
 <h3>5.2 问题:VLA 在原始 LIBERO 上"作弊"</h3>
 <div class="callout c-orange">主流 VLA(OpenVLA/π0/π0.5)在<b>原始</b> LIBERO 上都能 >90%。但 LIBERO-PRO 论文发现:高分很大程度是<b>死记硬背训练场景</b>,不是真学会任务——只要对场景加点扰动,成绩就崩到接近 0。</div>
-
-<div class="callout c-blue"><b>⚠️ 别和 LIBERO-Plus 搞混——是两个不同 benchmark</b><br>
-名字相近但不是一回事。VLS 用的是 <b>LIBERO-PRO</b>(arXiv:2510.03827)。
-<table style="margin-top:8px">
-<tr><th>对比</th><th>LIBERO-PRO(本文用)</th><th>LIBERO-Plus(另一个)</th></tr>
-<tr><td>扰动</td><td>5 类：Position(swap)/Object/Semantic/Task/Environment</td><td>7 类：相机视角/机器人初态/语言/光照/背景/噪声/布局</td></tr>
-<tr><td>侧重</td><td><b>语义·任务层 OOD</b>更极端(Task 换指令+目标+物体→普遍崩到 0–1%)</td><td><b>感知·物理层扰动</b>更全(相机/初态最致命 95%→&lt;30%)，规模 1 万+任务</td></tr>
-<tr><td>典型用途</td><td>验证推理时纠偏/语义泛化(VLS、guidance 类)</td><td>VLA 鲁棒性全景评测(ImageWAM 等用)</td></tr>
-</table>
-<span style="font-size:0.85em">哪个"更 OOD"没有绝对答案：广度看 LIBERO-Plus，单点极端难度看 LIBERO-PRO 的 Task。二者互补。详见 <a href="../starVLA/vla_architecture_explorer.html" style="color:var(--accent)">starVLA 数据集页 §3.4b</a>。</span></div>
 
 <h3>5.3 LIBERO-PRO —— 加扰动测真泛化(我们用的就是它)</h3>
 <p>在原始任务上施加 5 种扰动,专门戳破"记忆"、逼出真实的分布外(OOD)能力:</p>
