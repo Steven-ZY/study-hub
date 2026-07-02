@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>机器人操作 OOD 论文图谱：新物体 OOD 与方位 OOD</title>
+<style>
+:root{
+  --bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--surface3:#30364f;
+  --border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;
+  --accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;
+  --red:#f87171;--yellow:#facc15;--cyan:#22d3ee;--pink:#f472b6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  background:
+    radial-gradient(circle at 12% 0%,rgba(96,165,250,.16),transparent 28%),
+    radial-gradient(circle at 92% 8%,rgba(167,139,250,.18),transparent 30%),
+    var(--bg);
+  color:var(--text);line-height:1.75;min-height:100vh;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.container{max-width:1180px;margin:0 auto;padding:22px}
+header{text-align:center;padding:44px 16px 18px}
+.eyebrow{font-size:.78rem;color:var(--green);letter-spacing:.16em;text-transform:uppercase;margin-bottom:8px}
+h1{
+  font-size:clamp(1.9rem,4vw,3.2rem);line-height:1.12;margin-bottom:12px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2),var(--green));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.subtitle{color:var(--dim);max-width:900px;margin:0 auto;font-size:1rem}
+.stamp{margin-top:14px;color:var(--dim);font-size:.82rem}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:24px 0 18px;border-bottom:1px solid var(--border)}
+.tab{
+  padding:10px 15px;cursor:pointer;border-radius:10px 10px 0 0;
+  color:var(--dim);border:1px solid transparent;border-bottom:none;
+  font-size:.88rem;background:transparent;transition:.18s;
+}
+.tab:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:700}
+.panel{display:none;animation:fade .25s ease}
+.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.section{background:rgba(26,29,46,.94);border:1px solid var(--border);border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 12px 34px rgba(0,0,0,.18)}
+h2{color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);font-size:1.32rem}
+h3{color:var(--accent2);margin:18px 0 8px;font-size:1.08rem}
+h4{color:var(--green);margin:13px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+ul,ol{margin:8px 0 8px 24px;color:var(--dim)}
+li{margin:5px 0}
+strong{color:var(--text)}
+.lead{font-size:1.03rem;color:#cbd5e1}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px}
+.card h3{margin-top:0}
+.kpi{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:rgba(255,255,255,.055);border:1px solid var(--border);font-size:.8rem;color:var(--dim)}
+.pill.good{color:var(--green);background:rgba(52,211,153,.1)}
+.pill.mid{color:var(--yellow);background:rgba(250,204,21,.09)}
+.pill.warn{color:var(--orange);background:rgba(251,146,60,.09)}
+.pill.bad{color:var(--red);background:rgba(248,113,113,.09)}
+.callout{border-left:4px solid var(--accent);background:rgba(96,165,250,.08);padding:12px 15px;border-radius:0 12px 12px 0;margin:12px 0;color:#cbd5e1}
+.callout.green{border-left-color:var(--green);background:rgba(52,211,153,.08)}
+.callout.orange{border-left-color:var(--orange);background:rgba(251,146,60,.08)}
+.callout.red{border-left-color:var(--red);background:rgba(248,113,113,.08)}
+table{width:100%;border-collapse:collapse;margin:12px 0;overflow:hidden;border-radius:12px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--border);font-size:.88rem;vertical-align:top}
+th{background:var(--surface2);color:var(--accent);font-weight:700}
+tr:hover td{background:rgba(255,255,255,.025)}
+.score{font-weight:800;white-space:nowrap}
+.score.strong{color:var(--green)}
+.score.medium{color:var(--yellow)}
+.score.weak{color:var(--red)}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.72rem;font-weight:700;margin-right:5px;border:1px solid transparent}
+.tag-vla{background:rgba(96,165,250,.15);color:var(--accent)}
+.tag-wm{background:rgba(52,211,153,.14);color:var(--green)}
+.tag-guide{background:rgba(167,139,250,.15);color:var(--accent2)}
+.tag-data{background:rgba(244,114,182,.15);color:var(--pink)}
+.rank{counter-reset:item}
+.rank li{list-style:none;position:relative;padding-left:34px;margin:12px 0;color:#cbd5e1}
+.rank li:before{counter-increment:item;content:counter(item);position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;background:var(--surface3);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;border:1px solid var(--border)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.split{grid-template-columns:1fr}.container{padding:14px}th,td{font-size:.8rem;padding:8px}}
+footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">OOD in Robot Manipulation</div>
+  <h1>新物体 OOD 与方位 OOD：已分析论文图谱</h1>
+  <p class="subtitle">基于本地已分析论文，对当前哪些工作真正能缓解机器人操作 OOD 做分层判断：哪些是强解法，哪些只解决一部分，哪些只能做验证器或辅助模块。</p>
+  <p class="stamp">整理时间：2026-07-02 · 主题：VLA / 世界模型 / 推理时引导 / 数据规模化</p>
+</header>
+
+<main class="container">
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">总览结论</button>
+    <button class="tab" data-tab="matrix">论文矩阵</button>
+    <button class="tab" data-tab="object">新物体 OOD</button>
+    <button class="tab" data-tab="spatial">方位 / 空间 OOD</button>
+    <button class="tab" data-tab="limits">不能过度解释</button>
+    <button class="tab" data-tab="guide">对课题的判断</button>
+  </nav>
+
+  <section class="panel active" id="panel-overview">
+    <div class="section">
+      <h2>核心结论</h2>
+      <p class="lead">现在已经有不少工作能部分解决 OOD，但没有一篇干净地同时解决 <strong>新物体 OOD + 方位/空间 OOD + 接触丰富操作 + 真机高成功率</strong>。</p>
+      <div class="callout">
+        <strong>必须拆开看：</strong>新物体 OOD 更偏 open-vocabulary object grounding、target selection、unseen affordance；方位 OOD 又要拆成语言方向词、物体位姿变化、精确 3D 空间约束、相机/本体坐标变化。混在一起会高估很多论文。
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>最强重训式路线</h3>
+          <p><strong>Qwen-RobotManip</strong>：靠大规模多源数据、动作/相机/行为对齐、OOD-first 评测来提高泛化。它不是小补丁，而是基础模型训练范式。</p>
+          <div class="kpi"><span class="pill good">新物体强</span><span class="pill good">空间强</span><span class="pill warn">复现成本极高</span></div>
+        </div>
+        <div class="card">
+          <h3>最强冻结 VLA 竞品</h3>
+          <p><strong>VLS / OmniGuide</strong>：都在推理时引导 frozen VLA。VLS 走 VLM 生成 reward + keypoint 几何；OmniGuide 走 3D attractor/repeller 能量场。</p>
+          <div class="kpi"><span class="pill good">空间强</span><span class="pill mid">新物体中等</span><span class="pill warn">与 VLMGuide 高相关</span></div>
+        </div>
+        <div class="card">
+          <h3>最强 object-centric 替代路线</h3>
+          <p><strong>Goal-VLA</strong>：用图像生成 VLM 想象目标状态，再用语义匹配和点云配准反解 3D 位姿。强在刚体位姿，不是修复 VLA。</p>
+          <div class="kpi"><span class="pill good">目标位姿强</span><span class="pill mid">新物体中强</span><span class="pill warn">绕过 VLA</span></div>
+        </div>
+        <div class="card">
+          <h3>真正未被干净解决的组合</h3>
+          <p><strong>新物体 grounding 进入动作生成 + 方位修正 + 接触/触觉闭环</strong>。现有视觉几何方法对接触力、滑移、插入角度、触觉确认仍弱。</p>
+          <div class="kpi"><span class="pill good">研究空间仍在</span><span class="pill bad">不能只讲识别</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-matrix">
+    <div class="section">
+      <h2>工作能力矩阵</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>工作</th>
+            <th>新物体 OOD</th>
+            <th>方位/空间 OOD</th>
+            <th>机制</th>
+            <th>判断</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="tag tag-data">Scale</span><strong>Qwen-RobotManip</strong></td>
+            <td class="score strong">强</td>
+            <td class="score strong">强</td>
+            <td>大规模多源数据 + H2R 合成 + 统一动作/相机坐标对齐 + OOD-first 评测</td>
+            <td>当前最强的“重训基础模型式”OOD 解法之一；复现成本极高，无触觉/力闭环。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-wm">Goal</span><strong>Goal-VLA</strong></td>
+            <td class="score medium">中-强</td>
+            <td class="score strong">强</td>
+            <td>生成目标图像，再用语义匹配和点云配准反解物体 3D 变换。</td>
+            <td>适合 rigid object-centric 操作；但绕过 VLA，用几何 pipeline。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-guide">Guide</span><strong>VLS</strong></td>
+            <td class="score medium">中-强</td>
+            <td class="score medium">中-强</td>
+            <td>VLM 生成可微 reward，SAM/DINO/depth grounding 成 keypoint 几何约束，引导冻结 π0.5/OpenVLA。</td>
+            <td>与 VLMGuide 最直接相关；主要覆盖可 keypoint 化的几何 OOD。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-guide">Guide</span><strong>OmniGuide</strong></td>
+            <td class="score medium">中</td>
+            <td class="score strong">很强</td>
+            <td>3D attractor/repeller 能量场，在 flow matching 去噪中引导冻结 π0.5/GR00T。</td>
+            <td>几何/空间 OOD 很强；语义目标要先被 VLM 转成 3D 点。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-vla">LA</span><strong>LA4VLA</strong></td>
+            <td class="score weak">弱</td>
+            <td class="score medium">中-强</td>
+            <td>language-action pretraining，削弱视觉捷径，强化语言条件动作先验。</td>
+            <td>对方向词和低层动作语义有帮助；不解决“选哪个新物体”。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-vla">LA</span><strong>LAP</strong></td>
+            <td class="score weak">弱-中</td>
+            <td class="score medium">中</td>
+            <td>把低层动作表达成自然语言，提升跨本体与动作语义对齐。</td>
+            <td>更像 cross-embodiment/action representation 解法，不是新物体 grounding 解法。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-wm">WM</span><strong>VERA</strong></td>
+            <td class="score medium">中</td>
+            <td class="score medium">中-强</td>
+            <td>视频世界模型生成未来视觉，J-IDM 学图像空间雅可比，把视觉误差反解成动作。</td>
+            <td>像“视觉误差 → 动作修正”的世界模型路线；但需要目标本体 IDM。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-wm">WM</span><strong>DynaGuide</strong></td>
+            <td class="score medium">中</td>
+            <td class="score medium">中</td>
+            <td>DINOv2 latent dynamics + diffusion guidance。</td>
+            <td>对 goal/preference OOD 有用；不直接解决 open-vocabulary 目标选择。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-vla">VLA</span><strong>G0.5</strong></td>
+            <td class="score medium">中-强</td>
+            <td class="score medium">中</td>
+            <td>VLM-as-actor，自回归 CoT、BBox、Trace、ActionHint 与动作共享权重。</td>
+            <td>泛化结果强，但更多是重训路线；不是专门隔离验证新物体/方位 OOD。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-vla">VLA</span><strong>π0.5 / π0.7</strong></td>
+            <td class="score medium">中</td>
+            <td class="score medium">中</td>
+            <td>π0.5 靠大规模 VLA 预训练；π0.7 加记忆和子目标图像。</td>
+            <td>可作为强 baseline，但不能说已解决；π0.5 仍可能偏向旧物体。</td>
+          </tr>
+          <tr>
+            <td><span class="tag tag-guide">Verify</span><strong>DWYS</strong></td>
+            <td class="score weak">弱</td>
+            <td class="score weak">弱-中</td>
+            <td>runtime reasoning-action alignment verification。</td>
+            <td>更像验证器/拒绝器；候选动作里没有正确动作时，它不能生成 OOD 解法。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-object">
+    <div class="section">
+      <h2>新物体 OOD：谁真正相关？</h2>
+      <p class="lead">如果“新物体 OOD”指的是训练没见过或分布外目标物体，模型要根据语言选对并操作，那么问题不只是识别，而是 grounding 是否进入 action head。</p>
+      <ol class="rank">
+        <li><strong>Qwen-RobotManip：</strong>最强基础模型式答案。它在 LIBERO-Plus、RoboTwin-Clean2Rand、RoboTwin-IF、RoboCasa365、CobotMagic ALOHA OOD 上都明显强于 π0.5/StarVLA。它说明新物体/新场景 OOD 可以被“规模化数据 + 对齐正确的训练范式”缓解。</li>
+        <li><strong>VLS：</strong>最直接对 frozen VLA 有威胁。真机中 banana 换成未见 mug，baseline 0%，VLS 到 40%。这证明外部 VLM/视觉基础模型 grounding + 推理时引导可以把一部分新物体 OOD 从失败拉回来。</li>
+        <li><strong>Goal-VLA：</strong>如果任务是刚体物体的目标状态变化，它很强。图像生成式 VLM 直接想象完成后的目标图，再通过语义匹配和点云配准求物体位姿变换。</li>
+        <li><strong>G0.5 / VERA / DynaGuide：</strong>可算第二梯队。G0.5 通过自回归 CoT/BBox/Trace/action 共享权重提升 broad generalization；VERA 依赖视频模型想象正确未来；DynaGuide 依赖目标图或偏好条件。</li>
+      </ol>
+      <div class="callout orange">
+        <strong>不要把 LA4VLA/LAP 说成新物体 OOD 解法。</strong>LA4VLA 不看视觉做 language-action pretraining，本来就不负责 object localization；LAP 是动作表示与跨本体迁移范式，不是“新物体选择/定位”的主方法。
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>新物体 OOD 的真正难点</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>1. 目标选择</h3>
+          <p>在多个干扰物里把语言目标 grounding 到正确物体。VLM 认得物体不等于 policy 会去抓它。</p>
+        </div>
+        <div class="card">
+          <h3>2. Action head 偏置</h3>
+          <p>即使 backbone 识别正确，action head 仍可能沿用训练中旧物体/旧轨迹先验。这与你之前对 π0.5 的 probe 结果一致。</p>
+        </div>
+        <div class="card">
+          <h3>3. 新 affordance</h3>
+          <p>面对新物体形状、功能、接触属性时，选择合理抓取和操作策略。现有视觉几何方法对此覆盖不足。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-spatial">
+    <div class="section">
+      <h2>方位 / 空间 OOD 必须继续拆分</h2>
+      <div class="split">
+        <div class="card">
+          <h3>语言方向词</h3>
+          <p>left/right/up/down/clockwise/counterclockwise、move/tilt/rotate 等低层动作语义。</p>
+          <p><strong>相关工作：</strong>LA4VLA、LAP。</p>
+        </div>
+        <div class="card">
+          <h3>物体位姿 / 空间关系</h3>
+          <p>目标位置、目标姿态、放置关系、障碍、轨迹形状等。</p>
+          <p><strong>相关工作：</strong>Goal-VLA、OmniGuide、VLS。</p>
+        </div>
+        <div class="card">
+          <h3>相机 / 本体坐标变化</h3>
+          <p>同一个视觉运动在不同机器人、相机外参、动作空间下如何对齐。</p>
+          <p><strong>相关工作：</strong>Qwen-RobotManip。</p>
+        </div>
+        <div class="card">
+          <h3>图像误差到动作</h3>
+          <p>从目标视觉状态或视觉差异反推出机器人动作修正。</p>
+          <p><strong>相关工作：</strong>VERA、DynaGuide。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>方位 / 空间 OOD 强竞品排序</h2>
+      <ol class="rank">
+        <li><strong>OmniGuide：</strong>最强 3D 几何能量场，引导冻结 VLA。适合碰撞、目标点、轨迹形状、空间吸引/排斥。</li>
+        <li><strong>Goal-VLA：</strong>最强 object-centric goal pose 反解，但绕过 VLA。</li>
+        <li><strong>VLS：</strong>最强 VLM-generated reward + frozen VLA 竞品，在 LIBERO-PRO position perturbation 和 CALVIN 可移动/铰接物体上有收益。</li>
+        <li><strong>Qwen-RobotManip：</strong>最强重训基础模型式空间/坐标对齐，camera-frame EEF、CaPE、统一动作模板都直接针对坐标和本体 OOD。</li>
+        <li><strong>LA4VLA / LAP：</strong>更相关于语言方向动作先验，不是精确 3D 几何解法。</li>
+        <li><strong>VERA / DynaGuide：</strong>更相关于世界模型/动态模型式视觉误差引导。</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-limits">
+    <div class="section">
+      <h2>哪些不能过度解释为“解决 OOD”</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>π0.5 / π0.7</h3>
+          <p>它们是强 baseline，但不能直接说已经解决 OOD。π0.5 的 web data 提升物体识别，但你自己的 probe 已显示它会偏向旧物体；这说明“VLM backbone 认得物体”不等于“action head 会指向新物体”。</p>
+        </div>
+        <div class="card">
+          <h3>DWYS</h3>
+          <p>它是 runtime reasoning-action alignment verification，更像 verifier / rejection / reranking 模块。如果底层 policy 没有生成正确候选动作，验证器不能凭空产生正确 OOD 动作。</p>
+        </div>
+        <div class="card">
+          <h3>LA4VLA / LAP</h3>
+          <p>它们对语言动作、方向词、跨本体动作语义有价值，但不能被说成“解决新物体 grounding”。不要把 action representation 的收益扩大成 object grounding 的收益。</p>
+        </div>
+        <div class="card">
+          <h3>Goal / Preference Guidance</h3>
+          <p>DynaGuide、SuSIE/GHIL-Glue 等依赖 goal/subgoal/偏好条件。它们能帮助高层目标或偏好 OOD，但低层执行是否能泛化仍受 policy 训练分布限制。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-guide">
+    <div class="section">
+      <h2>对 VLMGuide / 新课题的直接判断</h2>
+      <div class="callout red">
+        <strong>不能再主张“首次用 VLM 引导冻结 VLA”。</strong>VLS 和 OmniGuide 已经占住了这条主叙事。如果 VLMGuide 只停留在“VLM 生成约束 + 推理时引导 flow matching”，会被审稿人认为是 incremental。
+      </div>
+      <h3>更可防守的差异化</h3>
+      <ol>
+        <li><strong>从几何 keypoint 引导升级到动作后果预测 / 视觉动态模型引导。</strong>VLS/OmniGuide 多数是把目标几何化后直接写 reward；如果我们预测动作导致的视觉后果，再与正负目标比较，叙事更接近世界模型/能量模型。</li>
+        <li><strong>显式建模正负目标。</strong>尤其是负目标、错误目标、旧物体偏置。VLS 有正 reward，OmniGuide 有 repeller，但不等于系统性做“旧物体偏置拒绝”。</li>
+        <li><strong>做闭环失败诊断和不确定性收手。</strong>不是恒定加引导，而是判断是否 OOD、是否要引导、引导多强、何时 abstain。</li>
+        <li><strong>在组合 OOD 上证明现有视觉几何方法不够。</strong>新物体 + 方位 + 接触/触觉闭环，是更难被 VLS/OmniGuide/Goal-VLA 完整覆盖的区域。</li>
+      </ol>
+    </div>
+    <div class="section">
+      <h2>论文写法建议</h2>
+      <table>
+        <tr><th>如果研究新物体 OOD</th><td>必须讨论 Qwen-RobotManip、VLS、Goal-VLA、G0.5。问题表述不要说“VLA 不认识物体”，而要说“VLM 认识，但 action head 不跟随，仍受旧物体/旧轨迹先验支配”。</td></tr>
+        <tr><th>如果研究方位 OOD</th><td>必须讨论 OmniGuide、Goal-VLA、VLS、LA4VLA/LAP、VERA。要明确是哪种空间泛化：方向词、目标位姿、3D 几何约束、相机/本体坐标，还是接触方位。</td></tr>
+        <tr><th>如果研究世界模型引导</th><td>必须和 VERA / DynaGuide / Goal-VLA 划界：是生成目标状态、预测动作后果、还是从视觉误差反解动作。</td></tr>
+      </table>
+      <div class="callout green">
+        <strong>一句话：</strong>Qwen-RobotManip 是当前最强的重训式 OOD 解法；VLS/OmniGuide 是最强的冻结 VLA 推理时引导竞品；Goal-VLA 是最强 object-centric 几何替代路线；真正还没被干净解决的是“新物体 grounding 进入动作生成 + 方位修正 + 接触/触觉闭环”的组合 OOD。
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  基于本地已分析论文整理：Qwen-RobotManip、Goal-VLA、VLS、OmniGuide、LA4VLA、LAP、VERA、DynaGuide、G0.5、π0.5、π0.7、DWYS 等。
+</footer>
+
+<script>
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+});
+</script>
+</body>
+</html>

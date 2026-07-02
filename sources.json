@@ -77,6 +77,12 @@
       "target": "pages/papers/imagewam.html",
       "title": "ImageWAM 精读",
       "category": "wm"
+    },
+    {
+      "source": "/home/chenzhiyuan/projects/paper/ood_robot_manipulation_papers.html",
+      "target": "pages/papers/ood_robot_manipulation_papers.html",
+      "title": "机器人操作 OOD 论文图谱",
+      "category": "vla"
     }
   ]
 }
