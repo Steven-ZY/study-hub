@@ -71,6 +71,12 @@
       "target": "pages/papers/qwen_robotmanip.html",
       "title": "Qwen-RobotManip 精读",
       "category": "vla"
+    },
+    {
+      "source": "~/projects/ImageWAM + ~/projects/paper/2026-ImageWAM/ImageWAM.pdf",
+      "target": "pages/papers/imagewam.html",
+      "title": "ImageWAM 精读",
+      "category": "wm"
     }
   ]
 }

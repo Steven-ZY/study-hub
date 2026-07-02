@@ -153,6 +153,7 @@
     {t:"π0.7 精读", u:"pages/papers/pi0.7.html", k:"pi0.7 π0.7 physical intelligence 上下文 元数据 bagel 世界模型 跨本体 组合泛化 coaching 子目标"},
     {t:"VERA 精读", u:"pages/papers/vera.html", k:"vera 视频模型 jacobian idm 雅可比 ibvs 光流 逆动力学 mit 零样本"},
     {t:"世界模型全景", u:"pages/papers/world_models.html", k:"世界模型 world model 显式 隐式 latent 触觉 视触觉 开环 闭环 mpc cem 规划 dreamtac contactworld dynaguide"},
+    {t:"ImageWAM 精读", u:"pages/papers/imagewam.html", k:"imagewam 图像编辑 image editing 世界动作模型 world action model wam 视频生成 kv cache 键值缓存 flow matching 动作专家 action expert flux2 omnigen2 ovis-u1 mot mixture of transformers joint attention libero robotwin 效率 flops 延迟 sjtu 腾讯"},
     {t:"VLA 训练与部署实战", u:"pages/vla-practice/vla_train_deploy.html", k:"训练 部署 损失 loss 微调 finetune lora 协同训练 co-training 知识隔离 ki tokenization fast dct rtc 实时 推理加速 ddim 采样 server client 归一化 动作表示 chunking 部署"},
     {t:"Qwen-RobotManip 精读", u:"pages/papers/qwen_robotmanip.html", k:"qwen robotmanip 对齐 alignment 规模化 scale ood human-to-robot h2r camera-frame eef canonical 80维 robotwin-if robotwin-xe 跨本体 in-context 数据清洗 qwen team"},
     {t:"DynaGuide 仓库分析", u:"pages/DynaGuide/index.html", k:"dynaguide 引导 dynamics guidance"},

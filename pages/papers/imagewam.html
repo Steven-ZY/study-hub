@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ImageWAM — 图像编辑即世界动作模型</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 15px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.85em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.79em;line-height:1.5}
+code{color:var(--green)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-family:'Cambria Math',serif;font-size:1.02em;margin:10px 0;color:var(--text)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--border);font-size:0.84em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+.flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin:14px 0}
+.box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;font-size:0.82em;text-align:center}
+.arrow{color:var(--accent);font-size:1.3em}
+.tag{display:inline-block;font-size:0.72em;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.t-code{background:rgba(52,211,153,0.15);color:var(--green)}
+.t-survey{background:rgba(251,146,60,0.15);color:var(--orange)}
+.t-note{background:rgba(244,114,182,0.15);color:var(--pink)}
+</style>
+</head>
+<body>
+<header>
+<h1>ImageWAM — 图像编辑即世界动作模型</h1>
+<p class="sub">Do World Action Models Really Need Video Generation, or Just Image Editing? · SJTU / EIT / Tencent RoboticsX / THU · arXiv 2606.19531 (2026)</p>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="overview">速览</div>
+<div class="tab" data-tab="motiv">动机·视频vs编辑</div>
+<div class="tab" data-tab="method">方法·架构</div>
+<div class="tab" data-tab="kvcache">KV Cache机制</div>
+<div class="tab" data-tab="train">训练·推理</div>
+<div class="tab" data-tab="exp">实验</div>
+<div class="tab" data-tab="code">代码印证</div>
+<div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="quiz">自测</div>
+</div>
+
+<div class="panel active" id="panel-overview">
+<div class="section">
+<h2>一句话</h2>
+<p><b>世界动作模型(WAM)真的需要"生成未来视频"吗？还是只要"想象一张编辑后的目标图"就够了？</b> ImageWAM 用<b>图像编辑模型</b>替代视频生成：只建模 current→target 单帧变换，推理时<b>甚至不解码那张目标图</b>，而是把图像编辑去噪过程中产生的 <span class="hl">KV cache</span> 直接当作紧凑的"世界-动作上下文"，喂给 flow-matching 动作专家。结果：追平视频 WAM，FLOPs 降到 1/6、延迟降到 1/4。</p>
+</div>
+<div class="note"><b>本页可靠性</b><span class="tag t-code">🟢源码/论文核对</span>：方法公式、实验数字均逐条核对自 PDF 原文(<code>arXiv:2606.19531v1</code>)；架构机制核对自仓库 <code>src/imagewam/models/backbones/</code>(<code>mot.py</code>/<code>action_dit_omnigen2.py</code>/<code>omnigen2_video_expert.py</code>)。解读与类比为学习者视角。原文：<a href="https://arxiv.org/abs/2606.19531" target="_blank" style="color:var(--accent)">arXiv</a> · <a href="https://zhangwenyao1.github.io/ImageWAM/" target="_blank" style="color:var(--accent)">项目页</a> · <a href="https://github.com/... " target="_blank" style="color:var(--accent)">代码(HF collection: yuyangalin/imagewam)</a>。</div>
+<div class="section">
+<h2>速览卡片</h2>
+<table>
+<tr><th>项</th><th>内容</th></tr>
+<tr><td>标题</td><td>ImageWAM: Do World Action Models Really Need Video Generation, or Just Image Editing?</td></tr>
+<tr><td>单位</td><td>上海交大 / 东方理工(EIT) / 腾讯 RoboticsX / 清华 / 中关村学院</td></tr>
+<tr><td>核心思想</td><td>用<b>图像编辑模型</b>(而非视频生成)当 WAM backbone；推理只跑一步编辑分支取 KV cache，不解码目标图</td></tr>
+<tr><td>三个变体</td><td>FLUX.2 ImageWAM(4B/9B，最强) · OmniGen2 ImageWAM · Ovis-U1 ImageWAM(1.1B DiT，最小)</td></tr>
+<tr><td>动作头</td><td>flow-matching Action Expert(DiT)，通过 joint attention 读取编辑分支 KV</td></tr>
+<tr><td>关键结果</td><td>RoboTwin2.0-Rand 93.56 · LIBERO 平均 98.4 · LIBERO-Plus 83.1(FLUX.2 4B) · 真机 84.5(π0 55.8)</td></tr>
+<tr><td>效率</td><td>延迟 1081ms→263ms，FLOPs 63.65→9.72(约视频 WAM 的 1/6)</td></tr>
+<tr><td>是否需额外具身预训练</td><td><b>否</b>(P.T.=✗)，只在下游 benchmark 演示上训练即超越众多需预训练的 baseline</td></tr>
+</table>
+</div>
+<div class="key"><b>为什么值得学</b>：它把"世界模型 = 预测未来视频"这条主流路线做了一次尖锐的解构——指出视频生成的三大浪费(见"动机"tab)，并用图像编辑这一"天生同时需要理解+生成"的通用任务给出更省的替代。对理解 WAM / VLA / 世界模型的分野很有代表性。</div>
+</div>
+
+
+<div class="panel" id="panel-motiv">
+<div class="section">
+<h2>动机：视频生成 WAM 的三大缺陷</h2>
+<p>先厘清概念梯队：<b>VLA</b>(vision-language-action) 直接从"观测+指令"预测动作；<b>WAM</b>(world action model) 在中间插入一步"视觉想象"，先想象未来、再据此产生动作(reason-before-act)。主流 WAM 用<b>视频生成</b>来做这步想象。</p>
+<div class="eq">VLA：(o<sub>t</sub>, l) → a<sub>t:t+H</sub>　　　视频 WAM：(o<sub>t</sub>, l) → ô<sub>t+1:t+H+1</sub> → a<sub>t:t+H</sub></div>
+<p>论文指出，用视频生成当 WAM backbone 有三个结构性缺陷：</p>
+<table>
+<tr><th>缺陷</th><th>说明</th></tr>
+<tr><td>① 推理昂贵</td><td>要预测/处理跨多帧的<b>稠密时空 token</b>，去噪+解码开销大(表5：1081ms / 63.65 TFLOPs)</td></tr>
+<tr><td>② 浪费在动作无关细节</td><td>视频生成会精细建模<b>与动作无关的时序外观</b>(背景、纹理、光影变化)，这些对"该怎么动"没有帮助</td></tr>
+<tr><td>③ 长时想象误差误导动作</td><td>长 horizon 的想象帧含<b>几何畸变、空间布局不一致的伪影</b>(图5)，而动作是 conditioned 在这些帧上的 → 伪影会把动作带偏</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>关键洞察：机器人操作 = 指令引导的视觉变换</h2>
+<p>作者把操作任务重新表述为：给定当前图 + 语言指令，产生一张"任务完成后的目标图"。这恰好就是<b>图像编辑(text-guided image editing)</b>做的事——按指令修改源图、保留无关内容。于是他们只建模<b>端点帧</b>：</p>
+<div class="eq">ImageWAM：(o<sub>t</sub>, l) → ô<sub>edit</sub> ≡ ô<sub>t+H+1</sub> → a<sub>t:t+H</sub></div>
+<p>ô<sub>edit</sub> 是一张 source-conditioned 的单帧，概括了"当前观测在该任务指令下应发生的视觉变换"。</p>
+<div class="key"><b>图像编辑预训练与策略学习天然对齐的三点(论文原话归纳)</b>：<br>① <b>instruction-to-change alignment</b>：编辑模型学的就是"指令→视觉改变"，正是策略需要的；<br>② <b>easier goal/change proxy</b>：单张目标帧比整段视频更易作为目标/变化代理；<br>③ <b>compact inference</b>：一步编辑分支 forward 就够，不必展开稠密未来 token。</div>
+<div class="warn"><b>反直觉之处</b>：既然只要目标帧，为何连目标帧都不解码？因为动作专家需要的不是像素，而是"编辑过程中蕴含的变换信息"——这信息在去噪 transformer 的 KV cache 里已经有了，解码成图反而多此一举。这是下一 tab 的核心。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-method">
+<div class="section">
+<h2>整体架构(图2)</h2>
+<div class="flow">
+<div class="box">指令 l<br><span style="color:var(--dim)">"Put shoes into box"</span></div>
+<span class="arrow">→</span>
+<div class="box">❄ Text tokenizer<br>+ ❄ LLM</div>
+<span class="arrow">→</span>
+<div class="box">❄ VLM 理解<br>(冻结)</div>
+</div>
+<div class="flow">
+<div class="box">当前观测 o<sub>t</sub></div>
+<span class="arrow">→</span>
+<div class="box">VAE Enc</div>
+<span class="arrow">→</span>
+<div class="box" style="border-color:var(--accent2)">🔥 Image Editing Backbone<br>(diffusion 分支，可训)</div>
+<span class="arrow" style="color:var(--green)">KV↓</span>
+<div class="box" style="border-color:var(--green)">🔥 Action Expert<br>(flow-matching DiT)</div>
+<span class="arrow">→</span>
+<div class="box">a<sub>t:t+H</sub></div>
+</div>
+<p style="text-align:center;font-size:0.8em">❄ 冻结(VLM/多模态理解模块)　🔥 可训(diffusion 编辑分支 + 动作专家)</p>
+</div>
+<div class="section">
+<h2>三个组件</h2>
+<h3>① Image Editing Backbone(编辑分支)</h3>
+<p>基于现成图像编辑模型(OmniGen2 / Ovis-U1 / FLUX.2)。输入当前观测 o<sub>t</sub> + 指令 l，本职是去噪生成"编辑后目标帧"。ImageWAM <b>复用它去噪过程中每层 transformer 的 KV cache</b> 作为条件，而不只是拿它解码一张图。</p>
+<h3>② Action Expert(动作专家)</h3>
+<p>一个 flow-matching 的 DiT(见 <code>ActionDiTOmnigen2</code>)。把动作 chunk 编码成 token，通过 <b>joint attention</b> 读取编辑分支的 KV cache，预测动作速度场。</p>
+<h3>③ 冻结的 VLM 理解模块</h3>
+<p>编辑模型里负责编码指令/视觉上下文的 VLM 部分<b>保持冻结</b>，提供稳定的语言-视觉条件；只训练 diffusion 生成分支和动作专家。</p>
+<div class="key"><b>为什么冻结 VLM、只训 diffusion 分支？(消融 Q2)</b> 理解需要高层语义抽象，生成需要细粒度空间/结构细节，尤其在深层两者需求冲突。统一大模型里联合优化会互相干扰(improve generation 伤 understanding，反之亦然)。ImageWAM 解耦二者：冻结理解、只适配生成分支+动作专家 → 在非关键帧未来预测设定下超过 UniVLA / BagelVLA(表6)。</div>
+</div>
+</div>
+
+
+<div class="panel" id="panel-kvcache">
+<div class="section">
+<h2>核心机制：KV Cache 当作"世界-动作上下文"</h2>
+<p>这是全文最关键、也最容易误解的一步。请分三层理解。</p>
+<h3>第一层：什么是这里的 KV cache</h3>
+<p>编辑分支是一个多层 transformer。去噪时，视觉 latent 先与指令(经冻结 VLM)交互，然后逐层做 attention。每一层 ℓ 都会算出 Key/Value 张量。ImageWAM 把这些逐层 KV 收集起来：</p>
+<div class="eq">C<sub>edit</sub><sup>τ</sup> = { (K<sub>ℓ</sub><sup>τ</sup>, V<sub>ℓ</sub><sup>τ</sup>) }<sub>ℓ=1..L</sub> = f<sub>edit</sub><sup>τ</sup>(o<sub>t</sub>, l)　　(式5)</div>
+<p>τ 是随机采样的<b>编辑去噪时间步</b>。因为这份 cache 是在"视觉 latent 已经和指令充分交互之后"算出来的，所以它<b>已经编码了"任务条件下的视觉变换信息"</b>，而无需把最终目标图解码出来。</p>
+<h3>第二层：动作专家怎么用它(joint attention)</h3>
+<p>关键实现在 <code>mot.py</code>(Mixture-of-Transformers)。编辑专家和动作专家<b>逐层并行前进</b>，在每层的 attention 里，动作 token 的 Query 去 attend <b>拼接了编辑分支 K/V 的联合序列</b>：</p>
+<div class="eq">Attn(Q<sub>action</sub>, [K<sub>action</sub>; K<sub>edit</sub>], [V<sub>action</sub>; V<sub>edit</sub>])</div>
+<p>也就是说，动作 token 不是"看一张图"，而是"直接钻进编辑模型的中间推理里，读它每一层关于'该怎么变'的内部表征"。这就是论文说的 <i>transfers the image editing model's internal reasoning process to robot control</i>。</p>
+<div class="note"><b>类比</b>：视频 WAM 是"先把电影拍完(解码未来帧)，再让人看电影猜动作"；ImageWAM 是"不拍电影，直接读导演脑子里的分镜草稿(KV cache)"——省掉了渲染成像的全部开销，还避开了成像伪影。</div>
+<h3>第三层：Fast-WAM 变体对照</h3>
+<p>为公平对比，作者还实现了 Fast-WAM 式的视频 WAM 变体：未来视频 token 只在<b>训练</b>时用于 video co-training，<b>推理时移除</b>，动作专家仅用"当前观测+指令"产生的 KV。这给出一个"和 ImageWAM 一样没有未来 token"的视频 WAM 基线。ImageWAM 在此基础上进一步把"视频"换成"图像编辑"。</p>
+</div>
+<div class="key"><b>一句话记住</b>：ImageWAM 的"世界模型输出"不是一张图、不是一段视频，而是<b>图像编辑去噪 transformer 每一层的 (K,V)</b>——一组紧凑、任务条件化、聚焦"变化"的中间表征，通过 joint attention 直接注入动作专家。</div>
+</div>
+
+<div class="panel" id="panel-train">
+<div class="section">
+<h2>训练：两个 flow-matching 目标联合优化</h2>
+<h3>① 图像编辑目标 L<sub>img</sub></h3>
+<p>让编辑分支学会预测任务相关的端点帧。目标帧 o<sub>t+H+1</sub> 经 VAE 编码成 latent z*；采噪声 ε<sub>z</sub>、图像流时间 r，构造插值 latent，diffusion 分支预测速度场(flow matching)：</p>
+<div class="eq">z<sub>r</sub> = (1−r)z* + rε<sub>z</sub>　　(式6)</div>
+<div class="eq">L<sub>img</sub> = E‖ u<sub>ϕ</sub>(z<sub>r</sub>, r | o<sub>t</sub>, l) − (ε<sub>z</sub> − z*) ‖²　　(式7)</div>
+<p>这个目标保住编辑分支"预测任务相关未来视觉状态"的能力，也逼它的 KV cache 编码有用的变换信息。</p>
+<h3>② 动作 flow matching 目标 L<sub>act</sub></h3>
+<p>动作 chunk a* 采噪声 ε<sub>a</sub>、动作流时间 s，构造插值，动作专家<b>conditioned 在编辑 cache C<sub>edit</sub><sup>τ</sup></b> 上预测动作速度场：</p>
+<div class="eq">a<sub>s</sub> = (1−s)a* + sε<sub>a</sub>　　(式8)</div>
+<div class="eq">L<sub>act</sub> = E‖ v<sub>θ</sub>(a<sub>s</sub>, s | o<sub>t</sub>, l, C<sub>edit</sub><sup>τ</sup>) − (ε<sub>a</sub> − a*) ‖²　　(式9)</div>
+<p>注意两个不同的"时间"：<b>s</b> 是动作 flow-matching 时间，<b>τ</b> 是图像编辑去噪时间步。训练时随机采 τ，让动作专家见到去噪不同阶段的 cache。</p>
+<div class="eq">总损失　L = L<sub>act</sub> + L<sub>img</sub>　(联合优化)</div>
+</div>
+<div class="section">
+<h2>推理：一步编辑 forward，不解码图</h2>
+<p>推理时既不做完整未来视频生成，也<b>不解码完整编辑图</b>。固定一个编辑去噪时间步 τ*，只跑<b>一次</b>编辑分支 forward 取 cache，然后动作专家据此去噪产生动作：</p>
+<div class="eq">C<sub>edit</sub><sup>τ*</sup> = f<sub>edit</sub><sup>τ*</sup>(o<sub>t</sub>, l)　→　â<sub>t:t+H</sub> ~ p<sub>θ</sub>(a<sub>t:t+H</sub> | o<sub>t</sub>, l, C<sub>edit</sub><sup>τ*</sup>)　(式10-11)</div>
+<div class="key">对比视频 WAM 要去噪+解码跨多帧的稠密时空 token，ImageWAM 只算<b>一组逐层编辑 cache</b> 直接用。既保住 reason-before-act 原则，又避开稠密未来 token 的实例化。</div>
+</div>
+</div>
+
+
+<div class="panel" id="panel-exp">
+<div class="section">
+<h2>实验设置</h2>
+<p>关键差异：<b>ImageWAM 不用额外具身预训练(P.T.=✗)</b>，只在下游 benchmark 演示上训练，却超越许多需要预训练的 VLA/WAM。评测 benchmark：LIBERO、LIBERO-Plus、RoboTwin 2.0，外加真机 Dobot XTrainer 双臂 4 任务。</p>
+</div>
+<div class="section">
+<h2>RoboTwin 2.0(表1)</h2>
+<table>
+<tr><th>方法</th><th>P.T.</th><th>Clean</th><th>Rand.</th><th>Avg</th></tr>
+<tr><td>π0</td><td>✓</td><td>65.92</td><td>58.40</td><td>62.16</td></tr>
+<tr><td>π0.5</td><td>✓</td><td>82.74</td><td>76.76</td><td>79.75</td></tr>
+<tr><td>Motus</td><td>✓</td><td>88.66</td><td>87.02</td><td>87.80</td></tr>
+<tr><td>FastWAM</td><td>✗</td><td>91.88</td><td>91.78</td><td>91.83</td></tr>
+<tr><td class="hl">ImageWAM</td><td>✗</td><td class="hl">93.20</td><td class="hl">93.56</td><td class="hl">93.38</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>LIBERO(表2)与 LIBERO-Plus(表3)</h2>
+<p>LIBERO 四套件平均：ImageWAM <b>98.4</b>(π0.5 96.9，与视频 WAM 相当)。LIBERO-Plus(更强分布偏移，含 Camera/Robot/Language/Light/Background/Noise/Layout 七类扰动)三变体平均成功率：</p>
+<table>
+<tr><th>方法</th><th>P.T.</th><th>Camera</th><th>Robot</th><th>Language</th><th>Light</th><th>Backgr.</th><th>Noise</th><th>Layout</th><th>Avg</th></tr>
+<tr><td>OpenVLA-OFT</td><td>✓</td><td>56.4</td><td>31.9</td><td>79.5</td><td>88.7</td><td>93.3</td><td>75.8</td><td>74.2</td><td>69.6</td></tr>
+<tr><td>π0</td><td>✓</td><td>13.8</td><td>6.0</td><td>58.8</td><td>85.0</td><td>81.4</td><td>79.0</td><td>68.9</td><td>53.6</td></tr>
+<tr><td>FastWAM</td><td>✗</td><td>16.4</td><td>44.5</td><td>68.9</td><td>78.2</td><td>53.7</td><td>37.7</td><td>60.7</td><td>51.5</td></tr>
+<tr><td>ImageWAM(OmniGen2)</td><td>✗</td><td>80.0</td><td>49.2</td><td>70.9</td><td>82.6</td><td>69.4</td><td>77.1</td><td>71.8</td><td>71.8</td></tr>
+<tr><td>ImageWAM(Ovis-U1)</td><td>✗</td><td>63.3</td><td>58.4</td><td>75.4</td><td>86.3</td><td>66.7</td><td>75.2</td><td>74.6</td><td>71.2</td></tr>
+<tr><td class="hl">ImageWAM(FLUX.2 4B)</td><td>✗</td><td class="hl">80.8</td><td>50.3</td><td class="hl">91.4</td><td class="hl">98.1</td><td>85.5</td><td class="hl">93.8</td><td class="hl">80.5</td><td class="hl">83.1</td></tr>
+</table>
+<div class="note">ImageWAM 在 <b>Camera</b> 扰动上碾压(80.8 vs π0 的 13.8)——因为 source-conditioned 编辑上下文帮助策略聚焦"任务相关视觉变化"而非过拟合固定视角。</div>
+</div>
+<div class="section">
+<h2>真机(表4)与效率(表5)</h2>
+<table>
+<tr><th>方法</th><th>真机 Avg</th><th>延迟</th><th>TFLOPs</th><th>中间态</th></tr>
+<tr><td>π0</td><td>55.8</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>π0.5</td><td>72.3</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>FastWAM-IDM</td><td rowspan="2">79.0</td><td>1081 ms</td><td>63.65</td><td>Video</td></tr>
+<tr><td>FastWAM(1 Step)</td><td>302 ms</td><td>13.21</td><td>Cache</td></tr>
+<tr><td class="hl">ImageWAM</td><td class="hl">84.5</td><td class="hl">263 ms</td><td class="hl">9.72</td><td>Cache</td></tr>
+</table>
+<p>真机四任务(叠三碗/叠毛巾/开抽屉存马克笔/挂杯)ImageWAM 全部最优，T2(叠毛巾，可形变物体)增益最大(+9 vs FastWAM)。</p>
+</div>
+<div class="section">
+<h2>消融要点(4.4)</h2>
+<ul>
+<li><b>Q1 能换编辑模型吗？</b>能。OmniGen2/Ovis-U1/FLUX.2 都超过 FastWAM，越强的编辑 backbone 策略越鲁棒 → 不绑定特定 edit 模型。</li>
+<li><b>Q2 为何不用统一理解-生成模型？</b>理解要语义抽象、生成要空间细节，深层冲突；解耦(冻结理解+只训生成分支)优于 UniVLA/BagelVLA。</li>
+<li><b>Q3 编辑 backbone 更大更好吗？</b>FLUX.2 4B→9B 平均 83.1→85.2，主要提升在 Robot/Language/Background/Layout；但 Camera/Light/Noise 非单调 → 规模有益但依赖 cache 与扰动类型的对齐。</li>
+</ul>
+</div>
+</div>
+
+<div class="panel" id="panel-code">
+<div class="section">
+<h2>代码印证:机制在仓库哪里</h2>
+<p><span class="tag t-code">🟢源码核对</span> 仓库 <code>~/projects/ImageWAM/</code>,推荐从 FLUX.2 变体入手。核心在 <code>src/imagewam/models/backbones/</code>。</p>
+<h3>① MoT:编辑专家 + 动作专家的 joint attention</h3>
+<p><code>mot.py</code>(Mixture-of-Transformers)是 KV 融合的落点。它校验所有 expert 层数/头数一致,逐层并行推进,在 <code>_mixed_attention</code> 里把动作 Query 与拼接后的 K/V 一起做 attention:</p>
+<pre>def _mixed_attention(self, q_cat, k_cat, v_cat, attention_mask, ...):
+    # q_cat: 动作 token 的 Query
+    # k_cat / v_cat: [K_action ; K_edit] / [V_action ; V_edit]  ← 编辑分支 KV 拼进来
+    key_len = k_cat.shape[1]
+    H, H_kv, D = self.num_heads, self.num_kv_heads, self.attn_head_dim
+    ...
+    out = F.scaled_dot_product_attention(q, k, v, attn_mask=attn_mask, enable_gqa=enable_gqa)
+    # 动作 token 通过 joint attention 读取编辑分支的逐层 KV</pre>
+<p>这正是式(5)-(9)里 "动作专家 conditioned 在 C<sub>edit</sub>" 的实现:不是把 cache 拼成一个 context 向量,而是<b>在每层 attention 里把编辑分支的 K/V 拼到动作 token 的注意力键值上</b>。</p>
+<h3>② 动作专家:flow-matching DiT</h3>
+<p><code>action_dit_omnigen2.py</code> 的 <code>ActionDiTOmnigen2</code>:动作经 <code>action_encoder</code>(Linear) 变 token,加 RoPE 与 timestep 调制,过若干 <code>OmniGen2TransformerBlock</code>,<code>head</code> 输出动作维度的速度场。它声明 <code>block_protocol="omnigen2"</code> 以便和编辑专家在 MoT 中对齐拼接。</p>
+<pre>class ActionDiTOmnigen2(nn.Module):
+    block_protocol = "omnigen2"
+    def __init__(self, action_dim, ..., num_layers=26, ...):
+        self.action_encoder = nn.Linear(action_dim, hidden_dim)
+        self.blocks = nn.ModuleList([OmniGen2TransformerBlock(...) for _ in range(num_layers)])
+        self.head = LuminaLayerNormContinuous(..., out_dim=action_dim)  # 输出动作速度场</pre>
+<h3>③ 编辑专家封装</h3>
+<p><code>omnigen2_video_expert.py</code> 的 <code>OmniGen2VideoExpert</code> 包住 <code>OmniGen2Transformer2DModel</code>,暴露 <code>blocks</code>/<code>num_heads</code>/<code>num_kv_heads</code>/RoPE,供 MoT 逐层取 KV。仓库还提供 <code>action_dit_flux2.py</code>/<code>ovis_u1_video_expert.py</code> 等对应三个变体。</p>
+<div class="note"><b>目录导航</b>:<code>imagewam.py</code>(204KB,主 pipeline 组装) · <code>mot.py</code>(joint attention 核心) · <code>imagewam_cache_idm.py</code> / <code>imagewam_noise_idm.py</code>(cache 版 / noise 版 IDM 变体) · <code>lora.py</code>(编辑分支 LoRA 适配)。数据侧 README 提及 no-ops 过滤与 FastWAM 预处理数据。</div>
+</div>
+</div>
+
+
+<div class="panel" id="panel-takeaway">
+<div class="section">
+<h2>评价与启发</h2>
+<h3>它把什么问题问清楚了</h3>
+<p>"世界模型是否必须=预测未来视频"是当前具身领域的一个隐含假设。ImageWAM 通过把 WAM 的中间态从"视频"退化到"单张编辑目标帧",再退化到"根本不解码、只取 KV cache",一步步逼问:reason-before-act 真正需要的是"想象的像素",还是"想象过程中的中间表征"?答案偏向后者。</p>
+<h3>方法论上的三个亮点</h3>
+<ul>
+<li><b>把生成任务当表征提取器</b>:不要生成结果(图/视频),只要生成过程中的 KV——这是"生成即表征"思路在机器人上的一次干净落地。</li>
+<li><b>解耦理解与生成</b>:冻结 VLM 理解、只训 diffusion 生成分支,规避统一模型的目标冲突(消融 Q2 有实证)。</li>
+<li><b>效率是一等公民</b>:1/6 FLOPs、1/4 延迟且不掉点,对真机实时控制(263ms)有直接意义。</li>
+</ul>
+<h3>值得追问/存疑处</h3>
+<ul>
+<li><b>τ* 的选择</b>:推理固定单个去噪时间步取 cache,τ* 怎么选、对不同任务是否稳健,论文给的是经验设定,值得关注其敏感性。</li>
+<li><b>"不解码目标图"的可解释性代价</b>:视频/图像 WAM 至少能可视化"想象",ImageWAM 的中间态是 KV,调试与失败归因更难(图4的 attention 可视化是一种补偿)。</li>
+<li><b>依赖强编辑基座</b>:最好结果来自 FLUX.2,意味着方法的上限被通用图像编辑模型的进步牵引——是优点(搭生成社区顺风车)也是依赖。</li>
+</ul>
+<div class="key"><b>与本站其它页联动</b>:配合"世界模型"页理解 WAM 谱系;配合 DP·DiT·Flow Matching 页理解这里的 flow-matching 动作专家;配合 starVLA 页对比"VLM 只做条件编码器 vs 这里编辑分支做条件编码器"的异同——ImageWAM 的 VLM 依然是冻结的条件提供者,创新点在"多加一个可训的图像编辑生成分支来产出更好的条件 cache"。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测:6 题检验理解</h2>
+<div id="quiz"></div>
+<div id="score" style="margin-top:16px;padding:14px;border-radius:8px;text-align:center;font-size:1.1em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:14px;padding:9px 22px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer">提交答案</button>
+</div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+const QUIZ=[
+{q:"ImageWAM 的核心主张是什么?",o:["用更大的视频生成模型","用图像编辑模型替代视频生成当 WAM backbone,且推理只取 KV cache 不解码图","放弃世界模型直接做 VLA","用强化学习"],a:1,e:"标题即问:WAM 真的需要视频生成吗?ImageWAM 用图像编辑,推理时只跑一步编辑分支取逐层 KV cache 作为动作条件,不解码目标帧。"},
+{q:"论文列出的视频生成 WAM 三大缺陷不包括?",o:["推理昂贵(稠密时空 token)","浪费在动作无关的时序外观细节","长时想象伪影误导动作","无法处理语言指令"],a:3,e:"三大缺陷是:①推理贵 ②建模动作无关外观 ③长horizon伪影误导动作。语言指令处理不是它列的缺陷。"},
+{q:"C_edit^τ(编辑 cache)本质是什么?",o:["一张编辑后的目标图","一段未来视频","编辑分支每层 transformer 的 (K,V),已编码任务条件下的视觉变换信息","动作序列"],a:2,e:"式5:C_edit={ (K_ℓ,V_ℓ) }_{ℓ=1..L},是逐层 KV,在视觉 latent 与指令交互后算出,无需解码最终图。"},
+{q:"动作专家如何使用编辑 cache?",o:["把 cache 平均成一个向量拼接","通过 joint attention,动作 Query 去 attend 拼接了编辑分支 K/V 的联合序列(mot.py)","先解码成图再用 CNN 编码","忽略 cache"],a:1,e:"mot.py 的 _mixed_attention 把动作 Query 与 [K_action;K_edit]/[V_action;V_edit] 一起 SDPA,即逐层 joint attention。"},
+{q:"训练时哪些模块冻结、哪些可训?",o:["全部可训","全部冻结","冻结 VLM 理解模块,只训 diffusion 编辑分支 + 动作专家","只训 VLM"],a:2,e:"消融 Q2:理解要语义抽象、生成要空间细节,深层冲突;故冻结理解、只适配生成分支与动作专家,避免相互干扰。"},
+{q:"ImageWAM 的效率相对视频 WAM 如何?",o:["更慢更贵","延迟 1081→263ms、FLOPs 63.65→9.72(约 1/6),且不掉点","一样","只快不省 FLOPs"],a:1,e:"表5:一步编辑 forward 取一组 cache,替代稠密多帧时空 token 去噪+解码,延迟约 1/4、FLOPs 约 1/6。"}
+];
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{const d=document.createElement('div');d.style.cssText='margin:16px 0;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';let h='<h4 style="color:var(--text);margin-bottom:8px">Q'+(i+1)+'. '+it.q+'</h4>';it.o.forEach((o,j)=>{h+='<label style="display:block;padding:7px 11px;margin:4px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-'+i+'-'+j+'"><input type="radio" name="q'+i+'" value="'+j+'" style="margin-right:7px">'+o+'</label>';});h+='<div id="exp-'+i+'" style="display:none;margin-top:7px;padding:9px;border-radius:6px;font-size:0.86em"></div>';d.innerHTML=h;c.appendChild(d);});}
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{const sel=document.querySelector('input[name="q'+i+'"]:checked');const e=document.getElementById('exp-'+i);e.style.display='block';it.o.forEach((_,j)=>{const l=document.getElementById('opt-'+i+'-'+j);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});document.getElementById('opt-'+i+'-'+it.a).style.borderColor='var(--green)';document.getElementById('opt-'+i+'-'+it.a).style.background='rgba(52,211,153,0.12)';if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确!'+it.e;}else{document.getElementById('opt-'+i+'-'+v).style.borderColor='var(--red)';document.getElementById('opt-'+i+'-'+v).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});const sc=document.getElementById('score');sc.style.display='block';let m=s>=6?'🏆 全对!':s>=4?'👍 不错':'📖 建议重读';sc.style.background='var(--surface2)';sc.style.border='2px solid var(--accent)';sc.style.color='var(--accent)';sc.innerHTML='得分:'+s+' / '+QUIZ.length+'　'+m;sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
+</script>
+<script src="../../assets/studyhub.js"></script>
+</body>
+</html>

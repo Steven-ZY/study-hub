@@ -88,6 +88,10 @@ footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;paddin
     <span class="rm-num">9</span><h4>世界模型全景</h4>
     <p>显式/隐式、视触觉、开环/闭环、MPC+CEM 规划</p>
   </a>
+  <a class="rm-step" href="pages/papers/imagewam.html">
+    <span class="rm-num">10</span><h4>ImageWAM</h4>
+    <p>图像编辑替代视频生成，KV cache 当世界-动作上下文</p>
+  </a>
 </div>
 <p style="font-size:0.78em;color:var(--dim);margin-top:12px">💡 卡在术语随时回 starVLA 页"新手入门"tab 查词典；每页底部有自测题检验掌握。</p>
 </div>
@@ -154,6 +158,12 @@ footer{text-align:center;color:var(--dim);font-size:0.8em;margin-top:60px;paddin
 
 <div class="section-title">论文精读 / 世界模型</div>
 <div class="grid">
+  <a class="card" href="pages/papers/imagewam.html">
+    <span class="tag tag-wm">World Model</span>
+    <h3>ImageWAM — 图像编辑即世界动作模型</h3>
+    <p>SJTU/EIT/腾讯 2026。用图像编辑模型替代视频生成当 WAM backbone，推理只取去噪 KV cache 不解码图，FLOPs 降至 1/6、延迟 1/4 仍追平视频 WAM。含代码印证与8题自测。</p>
+    <div class="meta">论文精读 · 9 tab · 源码核对</div>
+  </a>
   <a class="card" href="pages/papers/qwen_robotmanip.html">
     <span class="tag tag-vla">VLA</span>
     <h3>Qwen-RobotManip — 对齐释放规模化</h3>
