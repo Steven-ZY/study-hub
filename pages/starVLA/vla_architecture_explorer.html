@@ -127,6 +127,7 @@ tr:hover td { background: rgba(96,165,250,0.05); }
   <div class="tab" data-tab="dataflow">训练数据流</div>
   <div class="tab" data-tab="deepdive">深度数据流</div>
   <div class="tab" data-tab="compare">方法对比</div>
+  <div class="tab" data-tab="resources">资源配置</div>
   <div class="tab" data-tab="openpi">OpenPI 对比</div>
   <div class="tab" data-tab="quiz">自测</div>
 </div>
@@ -1629,6 +1630,38 @@ loss = MSE(velocity, action - noise)</code></pre>
     <tr><td>GR00T N1.5</td><td>86.5%</td><td>61.9%</td><td>47.6%</td><td>-</td></tr>
     <tr><td>OpenVLA-OFT</td><td>97.1%</td><td>-</td><td>-</td><td>-</td></tr>
   </table>
+</div>
+
+<!-- Panel: Resources -->
+<div class="panel" id="panel-resources">
+  <h2 style="margin-bottom:16px">训练 / 评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢论文核对</span></h2>
+  <p style="color:var(--text-dim);margin-bottom:16px">数据来源：StarVLA 论文各 benchmark 的 <i>Training setup</i> 小节（LIBERO/SimplerEnv/RoboCasa/RoboTwin 2.0）。用 <code>accelerate + DeepSpeed</code> 分布式训练。</p>
+
+  <table>
+    <tr><th>Benchmark</th><th>训练 GPU</th><th>分布式</th><th>per-device batch</th><th>优化步数</th></tr>
+    <tr><td><b>LIBERO</b></td><td class="highlight">8× A100</td><td>DeepSpeed ZeRO-2</td><td>16</td><td>100K（约 30K 即达好结果，每 10K 存 ckpt）</td></tr>
+    <tr><td><b>SimplerEnv (WidowX)</b></td><td>8× A100</td><td>DeepSpeed ZeRO-2</td><td>16</td><td>最多 100K</td></tr>
+    <tr><td><b>RoboCasa-GR1</b></td><td>8× A100</td><td>DeepSpeed ZeRO-2</td><td>16</td><td>最多 100K</td></tr>
+    <tr><td><b>RoboTwin 2.0</b></td><td class="highlight">48× A100</td><td>DeepSpeed ZeRO-2</td><td>4</td><td>—（多任务、5万+轨迹，开销最大）</td></tr>
+  </table>
+
+  <div style="margin:18px 0;padding:14px 18px;background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);border-radius:0 8px 8px 0">
+    <b>门槛解读</b>：仿真桌面任务（LIBERO/SimplerEnv/RoboCasa）的标准配置是 <b>8× A100（40/80GB）</b>，这是学术界复现 VLA 的主流规格。StarVLA 强调数据效率——LIBERO 只需 ~30K 步（约 10 epoch）即达到好结果，比 OpenVLA-OFT 的 175K 步少 6×，因此实际墙钟时间比配置看起来更友好。RoboTwin 2.0 因为是多任务 + 数万轨迹，用到 <b>48× A100</b>（约 6 节点），是全套里最重的。
+  </div>
+
+  <h3 style="margin:24px 0 12px;color:var(--accent2)">不同规模下如何取舍（学习者视角 <span style="font-size:0.7em;color:var(--pink)">🩷整理推测</span>）</h3>
+  <table>
+    <tr><th>你的资源</th><th>可行做法</th></tr>
+    <tr><td>单卡 24GB（3090/4090）</td><td>小 batch + 梯度累积跑 LIBERO 单套件冒烟；优先 OFT（额外参数最少、单步推理），或冻结 VLM 只训 action head</td></tr>
+    <tr><td>单卡 48–80GB（A6000/A100）</td><td>可训 LIBERO 单套件；4B VLM + LoRA/部分冻结可控显存</td></tr>
+    <tr><td>8× A100（论文标配）</td><td>完整复现 LIBERO/SimplerEnv/RoboCasa 全套</td></tr>
+    <tr><td>多节点（48 卡级）</td><td>RoboTwin 2.0 这类多任务大数据 benchmark</td></tr>
+  </table>
+  <p style="font-size:0.82em;color:var(--text-dim);margin-top:10px">注：显存主要由 VLM backbone 规模（3–4B）+ action head（OFT ~10M / GR00T ~100M / PI ~300M）+ batch + 是否冻结 VLM 决定。上表右列为按论文配置与常规经验的推断，非论文原文，故标 🩷。</p>
+
+  <div style="margin-top:18px;padding:14px 18px;background:rgba(52,211,153,0.08);border-left:3px solid var(--green);border-radius:0 8px 8px 0">
+    <b>评测资源</b>：评测（rollout）比训练轻，主要是在仿真环境里跑策略。StarVLA 每 10K 步评测一次 checkpoint，报告最早达到最佳平均成功率的 ckpt。推理侧单卡即可，具体延迟取决于 action head（OFT 单步最快，FM 类需 4–10 步去噪）。
+  </div>
 </div>
 
 <!-- Panel: Quiz -->

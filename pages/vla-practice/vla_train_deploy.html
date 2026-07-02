@@ -49,6 +49,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="infer">推理加速</div>
 <div class="tab" data-tab="realtime">实时控制 & RTC</div>
 <div class="tab" data-tab="deploy">部署</div>
+<div class="tab" data-tab="resources">资源配置</div>
 <div class="tab" data-tab="quiz">自测</div>
 </div>
 
@@ -302,6 +303,35 @@ Guided Inpainting(每步去噪时施加 soft mask W):
 <tr><td>归一化吞吐量</td><td>相对专家的 successes/hour，测速度+成功率综合</td></tr>
 <tr><td>OOD 成功率</td><td>分布外(换相机/物体/指令)的成功率，测真泛化(见 <a href="../starVLA/vla_architecture_explorer.html" style="color:var(--accent)">数据集 tab</a>)</td></tr>
 </table>
+</div>
+</div>
+
+
+<div class="panel" id="panel-resources">
+<div class="section">
+<h2>训练/评测资源配置全景 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢跨论文核对</span></h2>
+<p>这是一张<b>横向速查表</b>：本站已核对的各类工作，训练需要什么卡、几张、推理如何。数字均来自对应论文/仓库(点各专页看出处)。这能帮你在选方法前先算清"我的卡够不够"。</p>
+<table>
+<tr><th>工作</th><th>类型</th><th>训练 GPU</th><th>推理</th><th>可靠性</th></tr>
+<tr><td><b>Diffusion Policy</b></td><td>单体扩散策略</td><td>单卡即可(仓库支持 ray 多卡)</td><td>0.1s @ RTX 3080</td><td>🟢</td></tr>
+<tr><td><b>DynaGuide</b></td><td>引导冻结策略</td><td>单张 RTX 3090(24GB)，24–48h；dynamics ~15M/4GB</td><td>单卡</td><td>🟢</td></tr>
+<tr><td><b>VLS</b></td><td>training-free 引导</td><td><b>不训练</b>(base policy 冻结 + VLM API)</td><td>单卡跑 base policy + API</td><td>🟢</td></tr>
+<tr><td><b>StarVLA</b></td><td>VLA 平台</td><td>LIBERO/SimplerEnv 8× A100；RoboTwin 48× A100</td><td>单卡(OFT 单步最快)</td><td>🟢</td></tr>
+<tr><td><b>ImageWAM</b></td><td>图像编辑 WAM</td><td>8× H20；LIBERO 18h / RoboTwin 5天</td><td>263ms @ A6000</td><td>🟢</td></tr>
+<tr><td><b>VERA</b></td><td>视频世界模型</td><td>Wan-1.4B 单 H100；Wan-14B 8× H200</td><td>视频去噪(重)</td><td>🟢</td></tr>
+<tr><td><b>π0.7</b></td><td>通用 VLA + WM</td><td>主模型未公开；世界模型 14B</td><td>主策略单 H100(38ms)；子目标 4× H100</td><td>🟢推理/🟠训练</td></tr>
+<tr><td><b>Qwen-RobotManip</b></td><td>大规模 VLA</td><td>未公开(38,100h 数据，推测大集群)；SFT 更省</td><td>单卡(4B)</td><td>🟠</td></tr>
+</table>
+<h3 style="margin-top:20px">按"你手上的卡"选方法(实用决策 <span style="font-size:0.72em;color:var(--pink)">🩷整理</span>)</h3>
+<table>
+<tr><th>你的资源</th><th>能做什么</th></tr>
+<tr><td>单张 24GB(3090/4090)</td><td>Diffusion Policy、DynaGuide 全流程；VLS(跑 base policy)；VLA 类只能小 batch+梯度累积/LoRA 冒烟单套件</td></tr>
+<tr><td>单张 48–80GB(A6000/A100/H100)</td><td>VLA 单 benchmark 微调(4B VLM + 部分冻结/LoRA)；ImageWAM/VERA 的最小变体</td></tr>
+<tr><td>8× A100/H20/H100</td><td>完整训练主流 VLA(LIBERO/SimplerEnv/RoboCasa)、ImageWAM 全变体</td></tr>
+<tr><td>8× H200 / 多节点(数十卡)</td><td>大视频世界模型(Wan-14B)、RoboTwin 多任务(48 卡)、基础模型预训练</td></tr>
+</table>
+<div class="key"><b>三条经验规律</b>：① <b>训练显存</b>主要由 backbone 规模(策略网 ~百M / VLM 3–4B / 视频 DiT 14B)+ batch + 是否冻结决定；② <b>推理速度</b>主要由采样步数决定(单步回归 &lt; 少步 Flow Matching &lt; 多步 DDPM &lt; 视频解码)；③ <b>省算力路线</b>(引导冻结策略 / 图像编辑 cache / training-free)把成本从训练转到推理或 API，是算力受限时的现实选择。右列决策为按论文配置与常规经验的推断(🩷)。</div>
+<div class="note"><b>说明</b>：本表汇总自各专页已核对的数据。标 🟠 的(π0.7 训练、Qwen-RobotManip)论文未公开确切 GPU 数，只给量级推断，切勿当确定值引用。</div>
 </div>
 </div>
 

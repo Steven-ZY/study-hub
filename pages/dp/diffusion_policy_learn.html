@@ -464,6 +464,19 @@ action = action_pred[:, start:end]  # 只执行中间 8 步</code></pre>
 <li>原论文未探索 RL 微调（后续工作填补）</li>
 </ul>
 </div>
+<div class="section">
+<h2>训练/评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢论文+仓库核对</span></h2>
+<p>数据来源：Diffusion Policy 论文(Chi et al.)实验附录 + 仓库 <code>dp/README</code>。DP 是<b>轻量策略网络</b>(CNN-based 或 Transformer-based，~百 M 参数级)，资源门槛在本站所有工作里属最低。</p>
+<table>
+<tr><th>项</th><th>配置</th></tr>
+<tr><td>推理延迟</td><td><b>约 0.1s @ NVIDIA 3080</b>(得益于 receding-horizon + 少步去噪)</td></tr>
+<tr><td>训练 GPU</td><td>论文未统一列型号；仓库说明 <b>单张 Nvidia GPU 即可复现</b>仿真结果；多卡可选(ray 集群，<code>CUDA_VISIBLE_DEVICES=0,1,2</code> + <code>ray start --num-gpus=3</code>)</td></tr>
+<tr><td>Batch size</td><td>state-based 实验 batch <b>256</b></td></tr>
+<tr><td>训练时长</td><td>epoch 数很多：state-based 训到 <b>4500 epoch</b>、image-based <b>3000 epoch</b>(每 50 epoch 存 ckpt+评测)；部分 benchmark 用<b>固定 12h 训练</b>后取最后 ckpt 对比</td></tr>
+</table>
+<div class="key"><b>门槛解读</b>：DP 是"单卡友好"的代表——一张消费级/单张数据中心卡就能训练和推理，这也是它成为社区基线的原因之一。注意 epoch 数字很大(几千)不代表很慢，因为每个 epoch 的策略网络很小、数据量(演示轨迹)也有限；真正的墙钟时间取决于任务数据规模，仿真单任务常在数小时到一天级别。想复现优先用仓库提供的 config，单卡起步即可。</div>
+<div class="note"><b>与本站其它页对照</b>：DP(单卡 3080 推理 0.1s) 是资源谱系的最轻端；DynaGuide 在 DP 之上加引导也只用单张 3090；到 VLA(8× A100)、视频 WAM(8× H200) 才逐级变重。理解 DP 的轻量，有助于体会为什么"引导冻结策略/图像编辑 cache"这类省算力路线有吸引力。</div>
+</div>
 </div>
 
 

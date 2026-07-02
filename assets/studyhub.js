@@ -146,19 +146,19 @@
   // --- full-site search ---
   var SEARCH_INDEX = [
     {t:"Study Hub 首页 / 学习路线", u:"index.html", k:"首页 路线 roadmap 总览 home"},
-    {t:"StarVLA 架构交互式学习", u:"pages/starVLA/vla_architecture_explorer.html", k:"starvla vla 架构 backbone action head 新手入门 数据集 dataset libero robotwin simplerenv calvin robocasa 层 layer openpi 全部模型 fast oft groot pi 术语"},
+    {t:"StarVLA 架构交互式学习", u:"pages/starVLA/vla_architecture_explorer.html", k:"starvla vla 架构 backbone action head 新手入门 数据集 dataset libero robotwin simplerenv calvin robocasa 层 layer openpi 全部模型 fast oft groot pi 术语 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
     {t:"OpenPI & StarVLA 代码精读", u:"pages/starVLA/code_walkthrough.html", k:"openpi 代码 π0 pi0 gemma dit 精读 walkthrough flow matching"},
-    {t:"Diffusion Policy 学习课", u:"pages/dp/diffusion_policy_learn.html", k:"diffusion policy dp ddpm 去噪 denoise film receding horizon 扩散 视觉运动"},
-    {t:"DP·DiT·Flow Matching 三剑客", u:"pages/dp/dp_dit_flowmatching.html", k:"ddpm ddim flow matching dit 三剑客 采样 ode 速度场 adaln 扩散 衍生"},
-    {t:"π0.7 精读", u:"pages/papers/pi0.7.html", k:"pi0.7 π0.7 physical intelligence 上下文 元数据 bagel 世界模型 跨本体 组合泛化 coaching 子目标"},
-    {t:"VERA 精读", u:"pages/papers/vera.html", k:"vera 视频模型 jacobian idm 雅可比 ibvs 光流 逆动力学 mit 零样本"},
-    {t:"世界模型全景", u:"pages/papers/world_models.html", k:"世界模型 world model 显式 隐式 latent 触觉 视触觉 开环 闭环 mpc cem 规划 dreamtac contactworld dynaguide"},
-    {t:"ImageWAM 精读", u:"pages/papers/imagewam.html", k:"imagewam 图像编辑 image editing 世界动作模型 world action model wam 视频生成 kv cache 键值缓存 flow matching 动作专家 action expert flux2 omnigen2 ovis-u1 mot mixture of transformers joint attention libero robotwin 效率 flops 延迟 sjtu 腾讯"},
-    {t:"VLA 训练与部署实战", u:"pages/vla-practice/vla_train_deploy.html", k:"训练 部署 损失 loss 微调 finetune lora 协同训练 co-training 知识隔离 ki tokenization fast dct rtc 实时 推理加速 ddim 采样 server client 归一化 动作表示 chunking 部署"},
+    {t:"Diffusion Policy 学习课", u:"pages/dp/diffusion_policy_learn.html", k:"diffusion policy dp ddpm 去噪 denoise film receding horizon 扩散 视觉运动 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"DP·DiT·Flow Matching 三剑客", u:"pages/dp/dp_dit_flowmatching.html", k:"ddpm ddim flow matching dit 三剑客 采样 ode 速度场 adaln 扩散 衍生 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"π0.7 精读", u:"pages/papers/pi0.7.html", k:"pi0.7 π0.7 physical intelligence 上下文 元数据 bagel 世界模型 跨本体 组合泛化 coaching 子目标 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"VERA 精读", u:"pages/papers/vera.html", k:"vera 视频模型 jacobian idm 雅可比 ibvs 光流 逆动力学 mit 零样本 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"世界模型全景", u:"pages/papers/world_models.html", k:"世界模型 world model 显式 隐式 latent 触觉 视触觉 开环 闭环 mpc cem 规划 dreamtac contactworld dynaguide 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"ImageWAM 精读", u:"pages/papers/imagewam.html", k:"imagewam 图像编辑 image editing 世界动作模型 world action model wam 视频生成 kv cache 键值缓存 flow matching 动作专家 action expert flux2 omnigen2 ovis-u1 mot mixture of transformers joint attention libero robotwin 效率 flops 延迟 sjtu 腾讯 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"VLA 训练与部署实战", u:"pages/vla-practice/vla_train_deploy.html", k:"训练 部署 损失 loss 微调 finetune lora 协同训练 co-training 知识隔离 ki tokenization fast dct rtc 实时 推理加速 ddim 采样 server client 归一化 动作表示 chunking 部署 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
     {t:"Qwen-RobotManip 精读", u:"pages/papers/qwen_robotmanip.html", k:"qwen robotmanip 对齐 alignment 规模化 scale ood human-to-robot h2r camera-frame eef canonical 80维 robotwin-if robotwin-xe 跨本体 in-context 数据清洗 qwen team"},
-    {t:"DynaGuide 仓库分析", u:"pages/DynaGuide/index.html", k:"dynaguide 引导 dynamics guidance"},
+    {t:"DynaGuide 仓库分析", u:"pages/DynaGuide/index.html", k:"dynaguide 引导 dynamics guidance 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
     {t:"VLMGuide 对比 / OOD", u:"pages/VLMGuide/VLMGuide_对比网页.html", k:"vlmguide ood 引导 竞品 注意力"},
-    {t:"VLS 分析", u:"pages/vls/vls_analysis.html", k:"vls 引导 sigmoid"}
+    {t:"VLS 分析", u:"pages/vls/vls_analysis.html", k:"vls 引导 sigmoid 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"}
   ];
   var searchWrap = document.createElement("span");
   searchWrap.style.cssText = "position:relative;";

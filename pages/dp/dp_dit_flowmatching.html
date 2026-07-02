@@ -640,6 +640,19 @@ Diffusion Policy(2023, DDPM+UNet/Transf)
 </ol>
 <div class="key">掌握 DDPM + DiT + Flow Matching 这三块，几乎所有"扩散类机器人策略"论文都能秒拆。它们就是这个领域的"乐高基础件"。</div>
 </div>
+<div class="section">
+<h2>这三块对算力的影响 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(244,114,182,0.15);color:var(--pink);vertical-align:middle">🩷整理</span></h2>
+<p>选 DDPM / DiT / Flow Matching 不只是精度问题，也直接影响训练与推理的算力开销。下面是从"这三块怎么选"角度看资源的对照(概念性，非某一篇的具体数字)。</p>
+<table>
+<tr><th>选择</th><th>训练开销</th><th>推理开销</th><th>典型场景</th></tr>
+<tr><td><b>去噪网络: U-Net</b></td><td>较轻，参数可小到百 M 级</td><td>单步快</td><td>Diffusion Policy 原版(单卡 3080 推理 0.1s)</td></tr>
+<tr><td><b>去噪网络: DiT/Transformer</b></td><td>随层数/宽度上升，可到 B 级(如 GR00T/PI 的 action DiT ~100M–300M；视频 DiT 到 14B)</td><td>attention 随序列长度增长</td><td>VLA action head、视频世界模型</td></tr>
+<tr><td><b>采样: DDPM(多步)</b></td><td>—</td><td><b>慢</b>：几十~上千步</td><td>训练稳，推理慢</td></tr>
+<tr><td><b>采样: DDIM/少步</b></td><td>—</td><td>中：可压到 4–20 步</td><td>DP 常用少步</td></tr>
+<tr><td><b>采样: Flow Matching(ODE)</b></td><td>训练目标更简单(直线插值)</td><td><b>快</b>：直路径，少步即可(常 4–10 步)</td><td>π0/GR00T/ImageWAM 动作专家</td></tr>
+</table>
+<div class="note"><b>要点</b>：<b>训练侧</b>算力主要由"去噪网络多大"决定(U-Net 百 M vs 视频 DiT 14B，差两个数量级)；<b>推理侧</b>算力主要由"采样几步"决定(多步 DDPM 慢，Flow Matching / 少步 DDIM 快)。这解释了为什么机器人实时控制里 <b>Flow Matching + 少步</b> 越来越主流——它同时压低了训练目标复杂度和推理步数。具体某模型的 GPU 配置见各专页(DP/π0.7/VERA/ImageWAM 的"资源配置")。</div>
+</div>
 </div>
 
 

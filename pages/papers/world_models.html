@@ -50,6 +50,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="loop">开环 vs 闭环</div>
 <div class="tab" data-tab="planning">MPC+CEM 规划</div>
 <div class="tab" data-tab="summary">选题结论</div>
+<div class="tab" data-tab="resources">资源量级</div>
 <div class="tab" data-tab="quiz">自测</div>
 </div>
 
@@ -305,6 +306,23 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <li><b>DreamTac/VTAM/PACE 偏 open-loop/训练辅助</b>，不是在线 MPC 搜索</li>
 <li>纯视觉世界模型对触觉是 <b>N/A</b>，不是"隐式预测触觉"</li>
 </ul>
+</div>
+</div>
+
+<div class="panel" id="panel-resources">
+<div class="section">
+<h2>各范式的资源量级 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(244,114,182,0.15);color:var(--pink);vertical-align:middle">🩷整理·跨论文核对</span></h2>
+<p>本页是综述整理，不同世界模型范式的算力门槛差异极大。下表按"骨干类型"给出<b>常见资源量级</b>，具体数字来自本站已核对的对应专页(标 🟢 者)，其余为该类方法的普遍量级(🩷)。</p>
+<table>
+<tr><th>范式 / 骨干</th><th>代表工作</th><th>训练资源量级</th><th>推理</th></tr>
+<tr><td><b>视频生成 WAM</b>(大视频 DiT)</td><td>VERA(Wan-14B) 🟢、Cosmos、GigaWorld</td><td><b>最重</b>：14B 级视频模型，<b>单节点 8× H100/H200</b> 起；开发用 1.4B 变体单卡(VERA 用单 H100)</td><td>稠密时空 token 去噪+解码，延迟高(如 FastWAM 1081ms)</td></tr>
+<tr><td><b>图像编辑 WAM</b></td><td>ImageWAM 🟢</td><td><b>中</b>：<b>8× H20</b>，LIBERO 单实验约 18h、RoboTwin 约 5 天</td><td>只取一步编辑 KV cache，单 A6000 约 263ms</td></tr>
+<tr><td><b>VLA + 世界模型子目标</b></td><td>π0.7 🟢</td><td>主模型训练规格未公开(大集群)；世界模型 14B</td><td>主策略单 H100(38ms)；子目标 4× H100(1.25s/次，每 4s 一次)</td></tr>
+<tr><td><b>引导冻结策略</b>(training-free / 外部引导)</td><td>DynaGuide 🟢、DynaGuide 类</td><td><b>最轻</b>：dynamics model ≈15M 参数，<b>单张 RTX 3090(24GB)</b>，24–48h 收敛，占 ~4GB 显存</td><td>推理时在去噪回路里加引导；单卡</td></tr>
+<tr><td><b>Diffusion Policy / latent WM</b>(小策略网络)</td><td>Diffusion Policy 🟢、FOWM</td><td><b>轻</b>：策略网络 ~15M–上百 M 参数，常见<b>单卡即可</b>，部分 benchmark 固定 ~12h</td><td>DP 在 3080 上 0.1s；latent WM 视规模</td></tr>
+</table>
+<div class="key"><b>一条清晰的降本脉络</b>：视频生成 WAM(8× H200) → 图像编辑 WAM(8× H20，推理不解码) → 推理时引导冻结策略(单 3090)。这条线正是当前"世界模型用于操作"研究的核心张力——<b>想象越"重"(完整视频)算力越贵，越"轻"(KV cache / 只引导)越省但可解释性/想象力打折</b>。选题时按你的算力现实和对"可解释未来"的需求在这条线上定位。</div>
+<div class="note"><b>触觉/视触觉世界模型</b>(本页主线，如 DreamTac/VTAM/OmniVTA)：这类模型通常骨干比大视频模型小得多(触觉图分辨率低、多为 latent 预测)，学术复现门槛<b>普遍在单卡~少数卡量级</b>；各论文具体配置差异大，需查原文，本站暂标 🩷 待逐一核对。</div>
 </div>
 </div>
 

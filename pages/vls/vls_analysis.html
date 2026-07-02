@@ -56,6 +56,7 @@ tr:nth-child(even){background:rgba(255,255,255,0.02)}
 <a href="#idea">2. 创新方案</a>
 <a href="#code">3. 代码细节</a>
 <a href="#deploy">4. 部署记录</a>
+<a href="#resources">4.5 资源配置</a>
 <a href="#dataset">5. 数据集与评测</a>
 <a href="#results">6. 评测结果</a>
 <a href="#findings">7. 关键发现</a>
@@ -135,6 +136,19 @@ while time &gt;= -dt / 2:
 <tr><td>8 进程视频混写</td><td>hydra 秒级时间戳撞车</td><td>并行跑同程序注入唯一输出目录</td></tr>
 <tr><td>log 暴涨到 5.7G</td><td>每步 httpx 请求都打 INFO</td><td>调 API 的长任务把 httpx 日志压到 WARNING</td></tr>
 </table>
+</section>
+
+<section id="resources">
+<h2 class="sec">4.5 训练 / 评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:#34d399;vertical-align:middle">🟢仓库+论文核对</span></h2>
+<div class="callout c-blue"><b>核心特点:VLS 是 training-free。</b>它<b>不训练</b> base policy(冻结的生成式机器人策略,如 π-0.5),也不训练 VLM——VLM 通过 API 调用。所以"资源配置"的重点是<b>推理侧</b>,而非训练。</div>
+<table>
+<tr><th>组件</th><th>资源</th><th>说明</th></tr>
+<tr><td>Base policy 推理</td><td><b>单 GPU</b>(本机 RTX 3090 即可)</td><td>冻结的 flow-matching policy 做 10 步去噪,VLS 在去噪循环里插入引导</td></tr>
+<tr><td>VLM(reward/guidance)</td><td><b>API 调用</b>(GPT-4/GPT-4o/Claude-3.5，仓库 <code>vlm_agent.model</code>)</td><td>不占本地显存;但每去噪步都可能调 API → 长任务需把 httpx 日志压到 WARNING(见部署踩坑)</td></tr>
+<tr><td>全量并行评测</td><td>开发机 <b>8× RTX 4090</b></td><td>8 卡并行跑 LIBERO-PRO 各 suite;注意注入唯一输出目录避免视频混写</td></tr>
+<tr><td>训练</td><td><b>无</b></td><td>不微调 base policy、不训练 VLM —— 这正是 VLS 相对"收集 OOD 数据微调"的省钱卖点</td></tr>
+</table>
+<div class="callout c-orange"><b>成本画像</b>:VLS 的边际成本从"GPU 训练时间"转移到了"VLM API 调用次数"。<code>sample_batch_size</code>(粒子数)越大覆盖越好但越慢、API 调用越多;去噪步数×是否每步引导也决定 API 调用量。想省钱可减少引导步数(<code>start_ratio</code>)或粒子数。这与需要 8× A100 训练的 VLA、8× H200 训练的视频 WAM 形成鲜明对比——<b>VLS 用推理时算力+API 换掉了训练算力</b>。</div>
 </section>
 
 <section id="dataset">

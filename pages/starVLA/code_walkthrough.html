@@ -612,6 +612,31 @@ actions
 </div>
 </div>
 
+<div class="section">
+<h3>3.4 训练 / 推理资源配置对比 <span style="font-size:0.6em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green)">🟢论文核对</span></h3>
+<div class="vs">
+<div style="border-left:3px solid var(--accent2)">
+<p style="color:var(--text);font-size:1em"><b>OpenPI π₀</b>（Physical Intelligence）</p>
+<ul style="font-size:0.88em;color:var(--dim);margin-left:18px">
+<li><b>推理</b>：论文明确用<b>消费级 RTX 4090</b>做推理计时（移动机器人同样 4090）。这是 π₀ 主打的卖点之一——3B 级 VLA 能在单张消费卡上实时跑。</li>
+<li><b>训练</b>：论文未公开具体训练集群规格；π₀ 在 7 种机器人的大规模跨本体数据上预训练，属多机多卡量级（🟠 论文未明确）。</li>
+<li>openpi 开源仓库为 JAX 实现，微调下游任务的显存需求取决于是否全参微调 / LoRA。</li>
+</ul>
+</div>
+<div style="border-left:3px solid var(--accent)">
+<p style="color:var(--text);font-size:1em"><b>StarVLA</b>（乐高式代码库）</p>
+<ul style="font-size:0.88em;color:var(--dim);margin-left:18px">
+<li><b>训练</b>：仿真桌面 benchmark（LIBERO/SimplerEnv/RoboCasa）统一 <b>8× A100</b>，accelerate + DeepSpeed ZeRO-2，per-device batch 16，最多 100K 步；LIBERO ~30K 步即达好结果。</li>
+<li>RoboTwin 2.0（多任务大数据）用到 <b>48× A100</b>，per-device batch 4。</li>
+<li><b>推理</b>：单卡即可；延迟取决于 action head（OFT 单步最快，FM 类 4–10 步去噪）。</li>
+</ul>
+</div>
+</div>
+<div style="margin-top:14px;padding:12px 16px;background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:0.9em">
+<b>对照结论</b>：π₀ 强调"消费级卡也能推理"（4090），面向部署；StarVLA 面向"学术复现与公平对比"，训练用标准 8× A100 集群但靠数据效率压低实际墙钟。二者资源画像反映了各自定位——一个是产品级基础模型，一个是研究平台。数据来源：π₀ 论文推理章节、StarVLA 论文各 Training setup 小节。
+</div>
+</div>
+
 </div><!-- container -->
 </body>
 </html>

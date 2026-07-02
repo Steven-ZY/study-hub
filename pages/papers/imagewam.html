@@ -236,6 +236,29 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <li><b>Q3 编辑 backbone 更大更好吗？</b>FLUX.2 4B→9B 平均 83.1→85.2，主要提升在 Robot/Language/Background/Layout；但 Camera/Light/Noise 非单调 → 规模有益但依赖 cache 与扰动类型的对齐。</li>
 </ul>
 </div>
+<div class="section">
+<h2>训练/评测资源配置 <span class="tag t-code">🟢论文核对</span></h2>
+<p>来源：PDF §5.2 训练细节 + 表8(通用超参)/表9(数据集配置)/表10(训练成本)。</p>
+<table>
+<tr><th>项</th><th>配置</th></tr>
+<tr><td>训练 GPU</td><td><b>8× NVIDIA H20</b>(所有变体统一)</td></tr>
+<tr><td>分布式策略</td><td>DeepSpeed <b>ZeRO-1</b>；FLUX.2 9B 因显存改用 <b>ZeRO-2</b></td></tr>
+<tr><td>精度 / 优化器</td><td>bf16 · AdamW(β=0.9,0.95) · lr 1e-4 · warmup-cosine · grad clip 1.0</td></tr>
+<tr><td>推理硬件(测效率)</td><td>单卡 <b>A6000</b></td></tr>
+</table>
+<h4>训练成本(表10)</h4>
+<table>
+<tr><th>Benchmark</th><th>模型</th><th>时长</th><th>Batch/GPU</th></tr>
+<tr><td>LIBERO</td><td>OmniGen2</td><td>18 小时</td><td>12</td></tr>
+<tr><td>LIBERO</td><td>Ovis-U1</td><td>18 小时</td><td>16</td></tr>
+<tr><td>LIBERO</td><td>FLUX.2 4B</td><td>18 小时</td><td>10</td></tr>
+<tr><td>LIBERO</td><td>FLUX.2 9B</td><td>1.6 天</td><td>12</td></tr>
+<tr><td>RoboTwin</td><td>OmniGen2 / FLUX.2 4B</td><td>5 天</td><td>48†</td></tr>
+<tr><td>Real-World</td><td>OmniGen2</td><td>18 小时</td><td>16</td></tr>
+</table>
+<p style="font-size:0.8em">† 有效 per-GPU batch，含 3 步梯度累积。LIBERO 训 10 epoch、RoboTwin 5 epoch、真机 10 epoch。</p>
+<div class="key"><b>门槛解读</b>：H20(96GB)是国内合规的大显存卡，8 卡即可复现。LIBERO 单实验约 18h(≈1 GPU·天量级×8)相对亲民；RoboTwin(5万+轨迹)要 5 天×8 卡是主要开销。推理侧一张 A6000(48GB)即可，延迟 263ms 满足实时控制。若只有 24-48GB 卡，可优先跑最小的 Ovis-U1(1.1B DiT)变体。</div>
+</div>
 </div>
 
 <div class="panel" id="panel-code">

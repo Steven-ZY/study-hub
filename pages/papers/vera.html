@@ -50,6 +50,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="ibvs">与 IBVS 类比</div>
 <div class="tab" data-tab="exp">实验</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="resources">资源配置</div>
 <div class="tab" data-tab="quiz">自测</div>
 </div>
 
@@ -258,6 +259,21 @@ VERA 先想目标、再反解动作，方向相反。</div>
 <div class="section">
 <h2>一句话总结</h2>
 <p class="hl">VERA = action-free 视频世界模型(梦想未来) + Jacobian IDM(用学习的图像雅可比场把光流反解成动作)，是神经版、视频驱动的 IBVS，走"解耦规划+忠实翻译"路线实现零样本跨本体控制。</p>
+</div>
+</div>
+
+<div class="panel" id="panel-resources">
+<div class="section">
+<h2>训练/评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢论文核对</span></h2>
+<p>来源：VERA 论文附录 A.1(架构与训练配方)。核心是基于 Wan 家族视频模型的两个规模变体，混合精度训练。</p>
+<table>
+<tr><th>模型变体</th><th>用途</th><th>训练硬件</th><th>初始化</th></tr>
+<tr><td><b>Wan-1.4B</b>(文中亦记作 Wan-1.3B)</td><td>开发 & 视频模型消融</td><td><b>单张 H100</b></td><td>Wan-family checkpoint</td></tr>
+<tr><td><b>Wan-14B</b></td><td>主实验(main results)</td><td><b>1 个节点 8× H200</b></td><td>Wan-family / LVP checkpoint</td></tr>
+</table>
+<p style="font-size:0.85em;color:var(--dim)">所有运行使用混合精度。VERA 分两部分：video world model(上表，是资源大头) + 轻量的 Jacobian IDM(把预测帧对反解成动作，参数远小于视频模型)。</p>
+<div class="key"><b>门槛解读</b>：VERA 的资源画像是典型的"视频世界模型"量级——主实验用 <b>14B 视频模型 + 8× H200 一个节点</b>，这是当前视频驱动 WAM 的主流开销(也正是 ImageWAM 想省掉的部分)。想低成本复现/迭代可用 <b>1.4B 变体单张 H100</b>，论文的开发与消融正是这么做的。IDM 部分很轻，不是瓶颈。</div>
+<div class="note"><b>对照记忆点</b>：把 VERA(8×H200 视频生成)和 ImageWAM(8×H20 图像编辑、推理不解码)、DynaGuide(单 3090 引导冻结策略)三者的资源画像并排看，正好体现"视频 WAM → 图像编辑 WAM → 推理时引导"这条逐级降本的技术脉络。</div>
 </div>
 </div>
 

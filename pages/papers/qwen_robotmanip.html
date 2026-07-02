@@ -49,6 +49,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="arch">架构</div>
 <div class="tab" data-tab="ood">OOD评测</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="resources">资源配置</div>
 <div class="tab" data-tab="quiz">自测</div>
 </div>
 
@@ -270,6 +271,21 @@ Flow-Matching DiT Action Expert
 <div class="section">
 <h2>一句话总结</h2>
 <p class="hl">Qwen-RobotManip = Qwen3.5-4B + flow-matching DiT + 三重对齐(80维canonical/camera-frame EEF/structured prompt) + 38,100h 全开源数据(含24,808h H2R合成) + OOD-first 评测，用"先对齐再扩规模"释放异构机器人数据的规模化能力。</p>
+</div>
+</div>
+
+<div class="panel" id="panel-resources">
+<div class="section">
+<h2>训练/评测资源配置 <span class="tag t-survey">🟠论文未明确·调研</span></h2>
+<div class="warn"><b>诚实说明</b>：Qwen-RobotManip 技术报告<b>没有公开具体的 GPU 型号与数量</b>。报告只定性说明"SFT 阶段相比预训练使用<b>更少的 GPU 和更少的训练步数</b>"，未给出预训练集群规格。以下为基于可核对信息的<b>量级推断</b>，非论文原文数字，请勿当作确定值引用。</div>
+<table>
+<tr><th>阶段</th><th>可核对信息</th><th>资源量级推断</th></tr>
+<tr><td>预训练(Pre-training)</td><td>~38,100 小时操作数据 + 28M VL 样本，4B VLM + flow-matching DiT，异构大规模语料</td><td>🟠 这种数据规模的基础模型预训练通常需<b>多机多卡集群(数十至上百张 A100/H100 级)、数天至数周</b>。论文未给具体数字。</td></tr>
+<tr><td>SFT(下游适配)</td><td>论文明确：从预训练 ckpt 初始化，<b>比预训练用更少 GPU、更少步数</b></td><td>🟠 单节点 8 卡级即可完成下游 SFT(相对轻)。</td></tr>
+<tr><td>评测</td><td>LIBERO/LIBERO-Plus、RoboTwin(含 C2R Hard)、真机 ALOHA</td><td>🟢 仿真 rollout + 真机部署，推理侧单卡即可(4B 级模型)。</td></tr>
+</table>
+<div class="note"><b>为什么标 🟠</b>：本站坚持不编造硬件数字。阿里 Qwen 团队有大规模训练基建，但报告未披露训练卡数/型号，因此这里只给"数据规模→资源量级"的合理推断，并明确来源。若后续官方补充配置，应替换为 🟢 核对值。</div>
+<div class="key"><b>给复现者的实用判断</b>：Qwen-RobotManip 的<b>预训练</b>几乎不可能在单机复现(数据与算力门槛都高)；但它的价值主张是"对齐后可高效 SFT"——若官方放出预训练 ckpt，<b>下游 SFT 用 8× A100 级即可</b>，这才是普通实验室能触及的部分。</div>
 </div>
 </div>
 

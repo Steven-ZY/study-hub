@@ -50,6 +50,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="context">多模态上下文</div>
 <div class="tab" data-tab="exp">实验</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="resources">资源配置</div>
 <div class="tab" data-tab="quiz">自测</div>
 </div>
 
@@ -243,6 +244,22 @@ Action chunk [B,50,D] (实际执行 15 或 25 步)
 <div class="section">
 <h2>一句话总结</h2>
 <p class="hl">π0.7 = π0.6-MEM 架构 + 多模态上下文条件化(子任务/子目标/元数据/控制模式) + BAGEL 世界模型子目标 + 从 RL 专家蒸馏，用"丰富提示词"实现开箱即用的组合泛化与跨本体迁移。</p>
+</div>
+</div>
+
+<div class="panel" id="panel-resources">
+<div class="section">
+<h2>训练/评测资源配置 <span style="font-size:0.55em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢论文核对</span></h2>
+<p>来源：π0.7 论文附录 C(世界模型训练)、附录 D(推理速度与优化)。π0.7 主体与高层策略均基于 <b>Gemma3 4B</b>。</p>
+<h3>推理硬件</h3>
+<table>
+<tr><th>组件</th><th>硬件</th><th>说明</th></tr>
+<tr><td>π0.7 主策略 + 高层策略</td><td><b>单张 NVIDIA H100</b></td><td>均基于 Gemma3 4B；最小变体 <b>38ms</b>(3 相机输入、5 步去噪、训练时 RTC)</td></tr>
+<tr><td>世界模型(子目标图生成)</td><td><b>4× H100</b></td><td>14B 模型(BAGEL 初始化)，序列近 1 万 token；用 4-way 张量并行 + 8-bit 量化 + SageAttention，25 步去噪 <b>1.25s</b>；测试时每 Δ=4s 重生成一次子目标</td></tr>
+</table>
+<h3>训练</h3>
+<div class="warn"><b>诚实说明</b>：论文<b>未公开 π0.7 主模型的训练集群规格</b>(卡数/型号/时长)。世界模型"largely 沿用 BAGEL 训练配方"，在机器人数据+第一视角人类视频子集+若干开源图像编辑/视频数据上训练，但同样未给具体 GPU 数。Physical Intelligence 的基础模型训练属大规模集群量级(🟠 推断)。</div>
+<div class="key"><b>门槛解读</b>：π0.7 最值得注意的是<b>部署侧极其友好</b>——主策略单张 H100 就能 38ms 实时推理，这是它作为"可部署通用基础模型"的核心卖点。重头在世界模型(4×H100 生成子目标)，但子目标每 4 秒才更新一次，且可选关闭。若资源有限，可只用主策略(不开世界模型子目标)在单卡上运行。</div>
 </div>
 </div>
 
