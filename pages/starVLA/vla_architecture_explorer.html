@@ -687,11 +687,30 @@ VLM扩词表      VLM不改     VLM不改      VLM不改       VLM不改
     <table>
       <tr><th>名称</th><th>OOD 维度</th><th>核心发现</th></tr>
       <tr><td><b>LIBERO-Plus</b></td><td>7维独立扰动(物体布局/相机视角/初态/语言/光照/背景/噪声)</td><td>相机视角和初态最致命，性能 95%→30%</td></tr>
-      <tr><td><b>LIBERO-PRO</b></td><td>物体替换/初态/指令/环境(4维)</td><td>VLA 依赖记忆而非理解；π0.5 在 Task 扰动下 98%→24%</td></tr>
+      <tr><td><b>LIBERO-PRO</b></td><td>物体替换/初态/指令/环境/任务(5维)</td><td>VLA 依赖记忆而非理解；π0.5 Object 98% → 加 Position 扰动 17% → 加 Task 扰动 1%</td></tr>
       <tr><td><b>RoboTwin-C2R</b></td><td>干净场景训练→随机化场景测试</td><td>StarVLA 从 IID 85.7% 跌到 OOD 10.6%</td></tr>
       <tr><td><b>RoboTwin-IF</b></td><td>语言指令变体</td><td>测"语言是否真正控制动作"，防 VLA→VA 退化</td></tr>
       <tr><td><b>RoboTwin-XE</b></td><td>跨本体零样本迁移</td><td>joint 控制几乎不能跨本体(&lt;5%)，需相机系 EEF 对齐</td></tr>
     </table>
+  </div>
+
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">
+    <h3 style="color:var(--accent2);margin-bottom:12px">3.4b 专题：LIBERO-Plus vs LIBERO-PRO —— 哪个更"OOD"？<span style="font-size:0.6em;padding:2px 8px;border-radius:10px;background:rgba(52,211,153,0.15);color:var(--green);vertical-align:middle">🟢仓库/论文核对</span></h3>
+    <p style="color:var(--text-dim);margin-bottom:12px">两者名字相近但<b>是两个不同的 benchmark</b>，都在原始 LIBERO 演示上训练、在扰动集上测（都是纯 OOD 评测），但侧重点不同。常被混淆，这里逐条对照。</p>
+    <table>
+      <tr><th>维度</th><th>LIBERO-Plus</th><th>LIBERO-PRO</th></tr>
+      <tr><td>出处</td><td><i>In-depth Robustness Analysis of VLA</i>(sylvestf)；ImageWAM 等用它</td><td>arXiv:2510.03827；VLS 用它</td></tr>
+      <tr><td>规模</td><td><b>10,030</b> 个任务</td><td>4 suite × 多种扰动</td></tr>
+      <tr><td>扰动维度</td><td><b>7 类</b>：相机视角 / 机器人初态 / 语言改写 / 光照 / 背景纹理 / 传感器噪声 / 布局</td><td><b>5 类</b>：Position(swap) / Object / Semantic(语言) / Task / Environment</td></tr>
+      <tr><td>侧重</td><td class="hl">感知·物理层扰动更全</td><td class="hl">语义·任务层 OOD 更极端</td></tr>
+      <tr><td>标志性发现</td><td>对相机视角/初态极敏感(95%→&lt;30%)；模型"忽视语言"，退化成 Vision-Action</td><td>高分靠"死记场景"；π0.5 Object 98% → 加 Position 掉到 17%、加 Task 掉到 1%</td></tr>
+      <tr><td>最狠的扰动</td><td>相机视角 / 机器人初态(纯视觉物理偏移)</td><td>Task：<b>同时换指令+目标+关注物体</b>，几乎所有模型掉到 0–1%</td></tr>
+      <tr><td>巧妙设计</td><td>7 维 × 5 级强度梯度，可测"扰动多大开始崩"</td><td>Position(swap)：<b>指令一字不改</b>只对调两物体位置，纯测"死记坐标 vs 真找目标"</td></tr>
+    </table>
+    <div class="key"><b>哪个"更 OOD"？没有绝对答案，看你比什么：</b><br>
+    • 论<b>扰动覆盖广度 + 感知鲁棒性</b> → <b>LIBERO-Plus 更全面</b>(7 维 &gt; 5 维，量级 1 万+任务，还带 5 级强度梯度)。做 VLA 鲁棒性全景评测选它。<br>
+    • 论<b>单点极端难度 + 语义级泛化 + 戳破"记忆作弊"</b> → <b>LIBERO-PRO 的 Task 扰动更硬核</b>(逼模型真读懂新指令，普遍崩到 0–1%)。验证推理时纠偏(如 VLS)、语义泛化选它。</div>
+    <div class="note">两者<b>互补不冲突</b>：LIBERO-Plus 偏"看得对不对"(视觉/物理扰动)，LIBERO-PRO 偏"懂不懂任务"(语义/任务扰动)。数据来源：LIBERO-plus 仓库 README(7 维、10,030 任务) + LIBERO-PRO 论文 arXiv:2510.03827(VLS 页有代码级拆解)。</div>
   </div>
 
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:18px">

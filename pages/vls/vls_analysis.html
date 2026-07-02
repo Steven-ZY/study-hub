@@ -175,6 +175,16 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 <h3>5.2 问题:VLA 在原始 LIBERO 上"作弊"</h3>
 <div class="callout c-orange">主流 VLA(OpenVLA/π0/π0.5)在<b>原始</b> LIBERO 上都能 >90%。但 LIBERO-PRO 论文发现:高分很大程度是<b>死记硬背训练场景</b>,不是真学会任务——只要对场景加点扰动,成绩就崩到接近 0。</div>
 
+<div class="callout c-blue"><b>⚠️ 别和 LIBERO-Plus 搞混——是两个不同 benchmark</b><br>
+名字相近但不是一回事。VLS 用的是 <b>LIBERO-PRO</b>(arXiv:2510.03827)。
+<table style="margin-top:8px">
+<tr><th>对比</th><th>LIBERO-PRO(本文用)</th><th>LIBERO-Plus(另一个)</th></tr>
+<tr><td>扰动</td><td>5 类：Position(swap)/Object/Semantic/Task/Environment</td><td>7 类：相机视角/机器人初态/语言/光照/背景/噪声/布局</td></tr>
+<tr><td>侧重</td><td><b>语义·任务层 OOD</b>更极端(Task 换指令+目标+物体→普遍崩到 0–1%)</td><td><b>感知·物理层扰动</b>更全(相机/初态最致命 95%→&lt;30%)，规模 1 万+任务</td></tr>
+<tr><td>典型用途</td><td>验证推理时纠偏/语义泛化(VLS、guidance 类)</td><td>VLA 鲁棒性全景评测(ImageWAM 等用)</td></tr>
+</table>
+<span style="font-size:0.85em">哪个"更 OOD"没有绝对答案：广度看 LIBERO-Plus，单点极端难度看 LIBERO-PRO 的 Task。二者互补。详见 <a href="../starVLA/vla_architecture_explorer.html" style="color:var(--accent)">starVLA 数据集页 §3.4b</a>。</span></div>
+
 <h3>5.3 LIBERO-PRO —— 加扰动测真泛化(我们用的就是它)</h3>
 <p>在原始任务上施加 5 种扰动,专门戳破"记忆"、逼出真实的分布外(OOD)能力:</p>
 <table>

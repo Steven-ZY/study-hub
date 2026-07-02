@@ -146,7 +146,7 @@
   // --- full-site search ---
   var SEARCH_INDEX = [
     {t:"Study Hub 首页 / 学习路线", u:"index.html", k:"首页 路线 roadmap 总览 home"},
-    {t:"StarVLA 架构交互式学习", u:"pages/starVLA/vla_architecture_explorer.html", k:"starvla vla 架构 backbone action head 新手入门 数据集 dataset libero robotwin simplerenv calvin robocasa 层 layer openpi 全部模型 fast oft groot pi 术语 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"StarVLA 架构交互式学习", u:"pages/starVLA/vla_architecture_explorer.html", k:"starvla vla 架构 backbone action head 新手入门 数据集 dataset libero robotwin simplerenv calvin robocasa 层 layer openpi 全部模型 fast oft groot pi 术语 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长 libero-plus libero-pro ood对比 分布外 扰动 perturbation 鲁棒性"},
     {t:"OpenPI & StarVLA 代码精读", u:"pages/starVLA/code_walkthrough.html", k:"openpi 代码 π0 pi0 gemma dit 精读 walkthrough flow matching"},
     {t:"Diffusion Policy 学习课", u:"pages/dp/diffusion_policy_learn.html", k:"diffusion policy dp ddpm 去噪 denoise film receding horizon 扩散 视觉运动 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
     {t:"DP·DiT·Flow Matching 三剑客", u:"pages/dp/dp_dit_flowmatching.html", k:"ddpm ddim flow matching dit 三剑客 采样 ode 速度场 adaln 扩散 衍生 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
@@ -158,7 +158,7 @@
     {t:"Qwen-RobotManip 精读", u:"pages/papers/qwen_robotmanip.html", k:"qwen robotmanip 对齐 alignment 规模化 scale ood human-to-robot h2r camera-frame eef canonical 80维 robotwin-if robotwin-xe 跨本体 in-context 数据清洗 qwen team"},
     {t:"DynaGuide 仓库分析", u:"pages/DynaGuide/index.html", k:"dynaguide 引导 dynamics guidance 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
     {t:"VLMGuide 对比 / OOD", u:"pages/VLMGuide/VLMGuide_对比网页.html", k:"vlmguide ood 引导 竞品 注意力"},
-    {t:"VLS 分析", u:"pages/vls/vls_analysis.html", k:"vls 引导 sigmoid 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长"},
+    {t:"VLS 分析", u:"pages/vls/vls_analysis.html", k:"vls 引导 sigmoid 资源配置 gpu 显卡 显存 训练资源 算力 a100 h100 h200 h20 rtx 3090 4090 batch 训练时长 libero-pro libero-plus ood 扰动 task swap 分布外"},
     {t:"DWYS/SEAL 精读 — 运行时推理-动作对齐", u:"pages/papers/dwys_seal.html", k:"dwys seal do what you say steering reasoning action alignment vla 运行时 runtime best-of-n verifier vlm gpt-4o 推理 对齐 faithfulness ood 行为组合 composition libero pi0 pi0-reason nvidia cmu 采样 sample verify hypothesize predict 向量化环境"}
   ];
   var searchWrap = document.createElement("span");
