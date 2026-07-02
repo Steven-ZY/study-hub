@@ -90,7 +90,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
 <header>
   <div class="eyebrow">OOD in Robot Manipulation</div>
   <h1>新物体 OOD 与方位 OOD：已分析论文图谱</h1>
-  <p class="subtitle">基于本地已分析论文，对当前哪些工作真正能缓解机器人操作 OOD 做分层判断：哪些是强解法，哪些只解决一部分，哪些只能做验证器或辅助模块。</p>
+  <p class="subtitle">基于本地已分析论文，对当前哪些工作真正能缓解机器人操作 OOD 做分层判断：哪些是强解法，哪些只解决一部分，哪些只能做验证器或辅助模块；并补充每篇工作用了哪些数据集、为什么这样设计任务。</p>
   <p class="stamp">整理时间：2026-07-02 · 主题：VLA / 世界模型 / 推理时引导 / 数据规模化</p>
 </header>
 
@@ -98,6 +98,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
   <nav class="tabs">
     <button class="tab active" data-tab="overview">总览结论</button>
     <button class="tab" data-tab="matrix">论文矩阵</button>
+    <button class="tab" data-tab="datasets">数据集 / 任务设计</button>
     <button class="tab" data-tab="object">新物体 OOD</button>
     <button class="tab" data-tab="spatial">方位 / 空间 OOD</button>
     <button class="tab" data-tab="limits">不能过度解释</button>
@@ -143,6 +144,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
         <thead>
           <tr>
             <th>工作</th>
+            <th>主要数据集 / 任务</th>
             <th>新物体 OOD</th>
             <th>方位/空间 OOD</th>
             <th>机制</th>
@@ -152,6 +154,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
         <tbody>
           <tr>
             <td><span class="tag tag-data">Scale</span><strong>Qwen-RobotManip</strong></td>
+            <td>LIBERO / LIBERO-Plus、RoboTwin-C2R/IF/XE、RoboCasa365、EBench、CobotMagic ALOHA OOD、RoboChallenge</td>
             <td class="score strong">强</td>
             <td class="score strong">强</td>
             <td>大规模多源数据 + H2R 合成 + 统一动作/相机坐标对齐 + OOD-first 评测</td>
@@ -159,6 +162,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-wm">Goal</span><strong>Goal-VLA</strong></td>
+            <td>RLBench 8 任务；真机 xArm 4 任务</td>
             <td class="score medium">中-强</td>
             <td class="score strong">强</td>
             <td>生成目标图像，再用语义匹配和点云配准反解物体 3D 变换。</td>
@@ -166,6 +170,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-guide">Guide</span><strong>VLS</strong></td>
+            <td>LIBERO-PRO、CALVIN、Franka 真机 OOD</td>
             <td class="score medium">中-强</td>
             <td class="score medium">中-强</td>
             <td>VLM 生成可微 reward，SAM/DINO/depth grounding 成 keypoint 几何约束，引导冻结 π0.5/OpenVLA。</td>
@@ -173,6 +178,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-guide">Guide</span><strong>OmniGuide</strong></td>
+            <td>RoboCasa 仿真；DROID/Franka 真机 9 任务</td>
             <td class="score medium">中</td>
             <td class="score strong">很强</td>
             <td>3D attractor/repeller 能量场，在 flow matching 去噪中引导冻结 π0.5/GR00T。</td>
@@ -180,6 +186,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-vla">LA</span><strong>LA4VLA</strong></td>
+            <td>DROID → LA-33K；MetaWorld、LIBERO、xArm 真机语言目标任务</td>
             <td class="score weak">弱</td>
             <td class="score medium">中-强</td>
             <td>language-action pretraining，削弱视觉捷径，强化语言条件动作先验。</td>
@@ -187,6 +194,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-vla">LA</span><strong>LAP</strong></td>
+            <td>OXE + MolmoAct 训练；LIBERO；DROID/Custom Franka/YAM/Kinova 真机</td>
             <td class="score weak">弱-中</td>
             <td class="score medium">中</td>
             <td>把低层动作表达成自然语言，提升跨本体与动作语义对齐。</td>
@@ -194,6 +202,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-wm">WM</span><strong>VERA</strong></td>
+            <td>DROID、PushT、MimicGen、Allegro-Sim/Real、Panda-Real</td>
             <td class="score medium">中</td>
             <td class="score medium">中-强</td>
             <td>视频世界模型生成未来视觉，J-IDM 学图像空间雅可比，把视觉误差反解成动作。</td>
@@ -201,6 +210,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-wm">WM</span><strong>DynaGuide</strong></td>
+            <td>CALVIN play data / benchmark；ARX 真机 cup preference</td>
             <td class="score medium">中</td>
             <td class="score medium">中</td>
             <td>DINOv2 latent dynamics + diffusion guidance。</td>
@@ -208,6 +218,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-vla">VLA</span><strong>G0.5</strong></td>
+            <td>LIBERO、RoboTwin 2.0、SimplerEnv、BEHAVIOR-1K、DROID、PP Bench、R1 真机</td>
             <td class="score medium">中-强</td>
             <td class="score medium">中</td>
             <td>VLM-as-actor，自回归 CoT、BBox、Trace、ActionHint 与动作共享权重。</td>
@@ -215,6 +226,7 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-vla">VLA</span><strong>π0.5 / π0.7</strong></td>
+            <td>真实家庭长程任务、多本体机器人数据、web/VQA/检测数据；π0.7 另含子目标图像与 RL 专家蒸馏数据</td>
             <td class="score medium">中</td>
             <td class="score medium">中</td>
             <td>π0.5 靠大规模 VLA 预训练；π0.7 加记忆和子目标图像。</td>
@@ -222,10 +234,143 @@ footer{text-align:center;color:var(--dim);font-size:.78rem;margin:44px 0 18px}
           </tr>
           <tr>
             <td><span class="tag tag-guide">Verify</span><strong>DWYS</strong></td>
+            <td>LIBERO-10-R / LIBERO-100-R reasoning 标注扩展；LIBERO OOD 变体</td>
             <td class="score weak">弱</td>
             <td class="score weak">弱-中</td>
             <td>runtime reasoning-action alignment verification。</td>
             <td>更像验证器/拒绝器；候选动作里没有正确动作时，它不能生成 OOD 解法。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-datasets">
+    <div class="section">
+      <h2>为什么要单独看数据集 / 任务设计</h2>
+      <p class="lead">OOD 论文的说服力不只来自方法，还来自评测协议。一个数据集到底在测“新物体”“方位”“语言条件”“跨本体”还是“长程组合”，会直接决定这篇论文的 claim 是否成立。</p>
+      <div class="callout">
+        <strong>判断原则：</strong>标准 ID benchmark 高分通常不够。真正有价值的数据集会主动打破训练分布中的某个先验：物体位置、物体身份、语言目标、相机/本体坐标、任务阶段或长程组合。
+      </div>
+      <table>
+        <thead>
+          <tr><th>OOD 类型</th><th>常用数据集 / 任务</th><th>为什么用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>新物体 / 目标选择</td><td>LIBERO-PRO Object/Task、CobotMagic ALOHA OOD、VLS 真机 mug 替换、Goal-VLA 真机物体任务</td><td>打破“训练时总抓旧物体”的动作先验，检查语言目标是否真正进入动作生成。</td></tr>
+          <tr><td>方位 / 位置 / 空间关系</td><td>LIBERO-PRO Spatial/Position、Goal-VLA RLBench 物体位姿任务、OmniGuide RoboCasa clutter / 3D semantic target</td><td>检查策略是否能跟随目标位置、空间关系、障碍和轨迹约束，而不是记忆固定布局。</td></tr>
+          <tr><td>语言条件 / 指令跟随</td><td>RoboTwin-IF、LA4VLA 真机按钮/书架/九宫格任务、DWYS reasoning LIBERO 扩展</td><td>同一视觉场景里只改语言目标，看模型是否真的听语言，而不是视觉捷径。</td></tr>
+          <tr><td>跨本体 / 坐标对齐</td><td>RoboTwin-XE、LAP 的 Custom Franka/YAM/Kinova、VERA Panda/Allegro</td><td>检查动作表示、相机坐标和动力学适配是否能跨机器人泛化。</td></tr>
+          <tr><td>长程 / 组合泛化</td><td>LIBERO-10/Long、CALVIN、RoboCasa365、BEHAVIOR-1K</td><td>检查多阶段任务中是否能切换阶段、避免局部 reward 卡死、处理组合任务。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>VLS：为什么用 LIBERO-PRO / CALVIN / 真机 OOD</h2>
+      <div class="callout green">
+        <strong>VLS 的问题定义：</strong>冻结的 π0.5 / OpenVLA 在训练分布外会失效，能否不重训、只靠 VLM 生成的可微 reward 在推理时把动作拉回正确方向？因此它需要选择“原始任务高分，一加扰动就崩”的 benchmark。
+      </div>
+      <h3>1. LIBERO-PRO：专门制造语义与空间 OOD</h3>
+      <table>
+        <thead>
+          <tr><th>组成</th><th>任务 / 扰动</th><th>为什么这样测</th><th>对 VLS 的意义</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>4 个 suite</td><td>Goal / Spatial / Object / 10-Long，每个 suite 10 个任务，每任务 20 episodes</td><td>覆盖目标变化、空间关系、物体选择、长程任务四类能力。</td><td>能区分 VLS 是只会单阶段抓放，还是能处理多阶段和长程。</td></tr>
+          <tr><td>Position / swap</td><td>交换或移动物体位置，语言指令不变</td><td>打破“目标总在固定位置”的视觉记忆。</td><td>直接测试方位/空间 OOD；VLS 若有效，应把动作拉向新的正确位置。</td></tr>
+          <tr><td>Task 扰动</td><td>同时改语言、目标完成状态、关注物体</td><td>比同义改写更强，要求模型重新 grounding 新目标和新任务。</td><td>测试 VLM reward 能否重写 frozen policy 的旧任务先验。</td></tr>
+          <tr><td>Object suite</td><td>单阶段抓放，只换目标物体</td><td>结构最干净，失败主要来自“抓错物体/旧物体偏置”。</td><td>最适合证明 VLS 的 object grounding guidance 有用。</td></tr>
+          <tr><td>Goal / 10-Long</td><td>多阶段和长程串联任务</td><td>检查 stage recognition 和长期规划，而不是单步目标吸引。</td><td>暴露 VLS 边界：没有可靠 stage 切换时，reward 可能卡在错误阶段。</td></tr>
+        </tbody>
+      </table>
+      <p>VLS 使用 LIBERO-PRO 的关键不是“LIBERO 很常见”，而是 LIBERO-PRO 把原本容易被记忆的桌面任务改造成可控 OOD：同一底层策略、同一套任务，只改变位置或任务规格，从而能清楚归因“baseline 崩溃是因为 OOD”。</p>
+
+      <h3>2. CALVIN：检验可移动物体和铰接件上的空间 reward</h3>
+      <table>
+        <thead>
+          <tr><th>任务组</th><th>测什么</th><th>为什么用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>MovableObjects</td><td>随机放置的彩色方块等可移动目标</td><td>目标位置随 episode 变化，固定 goal policy 或简单坐标引导容易失败；适合验证 VLM reward 是否能表达当前场景目标。</td></tr>
+          <tr><td>ArticulatedParts</td><td>door / drawer / button / switch 等铰接或交互部件</td><td>目标不是简单抓点，而是空间方向、接触点和部件 affordance；能检验 reward 是否比 DynaGuide/ITPS 更任务特定。</td></tr>
+        </tbody>
+      </table>
+      <p>CALVIN 的作用是补 LIBERO-PRO 的不足：它更强调长程语言条件操作和可交互部件，能展示 VLS 在“几何 reward 可表达”的动态目标上优于固定目标条件化或启发式 latent guidance。</p>
+
+      <h3>3. 真机 Franka OOD：验证不是仿真技巧</h3>
+      <table>
+        <thead>
+          <tr><th>真机 OOD</th><th>具体设计</th><th>验证意图</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>外观偏移</td><td>未见黄盘等外观变化</td><td>看 grounding 是否能承受视觉外观变化。</td></tr>
+          <tr><td>位置偏移</td><td>交换两个盘子位置，指令不变</td><td>看策略是否仍按旧位置执行，还是能根据当前图像更新目标。</td></tr>
+          <tr><td>物体偏移</td><td>把 banana 换成未见 mug</td><td>测试新物体 OOD；报告中最难的 mug 替换 baseline 0%，VLS 40%。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>其他关键 OOD 论文的数据集选择</h2>
+      <table>
+        <thead>
+          <tr><th>工作</th><th>用了哪些数据集 / 任务</th><th>为什么用这些</th><th>任务在验证什么</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Qwen-RobotManip</strong></td>
+            <td>训练：OXE、AgiBotWorld、RoboMIND、Galaxea、RoboCOIN、DROID、RH20T、RDT-1B、InternData-A1、人手视频 EgoDex/VITRA/EgoVerse、H2R 合成、28M VL 样本。评测：LIBERO、LIBERO-Plus、RoboTwin-C2R/IF/XE、RoboCasa365、EBench、CobotMagic ALOHA OOD、RoboChallenge。</td>
+            <td>它的 claim 是“对齐释放规模化”，所以必须覆盖多机器人、多场景、多任务、跨本体、语言指令和真实扰动。单个 LIBERO 高分不能证明 foundation model 质量。</td>
+            <td>LIBERO/标准 RoboTwin 测 ID；LIBERO-Plus 测多扰动鲁棒；RoboTwin-C2R 测 clean-to-random 视觉 OOD；RoboTwin-IF 测同场景不同语言目标；RoboTwin-XE 测跨本体；RoboCasa365 测厨房长程组合；CobotMagic OOD 测真机扰动。</td>
+          </tr>
+          <tr>
+            <td><strong>Goal-VLA</strong></td>
+            <td>RLBench 8 任务：Pick Up Cup、Open Wine Bottle、Put Shoe On Box、Take Plate Off Dish Rack、Take Frame Off Hanger、Plug Charger In Supply、Place Cup on Cabinet、Close Box；真机 xArm 4 任务：Tomato Placement、Table Sweeping、Weighing Duck、Bottle Stand-Up。</td>
+            <td>它要证明 training-free object-centric world model 能 zero-shot 操作，因此选择可由“目标状态图像 → 物体位姿变换 → motion planning”串起来的任务。</td>
+            <td>RLBench 测不同物体重定位、开合、插入供电口等几何目标；真机任务暴露深度、朝向、高度估计误差，尤其 Weighing Duck / Bottle Stand-Up 对几何精度敏感。</td>
+          </tr>
+          <tr>
+            <td><strong>OmniGuide</strong></td>
+            <td>RoboCasa 仿真：pick-and-place、TurnSinkSpout、clutter、Multi-Choice；真机 DROID/Franka 9 任务：碰撞 static/dynamic/reactive，语义 Pictures/Objects/Trash Cans，人类模仿 Drawer/Cabinet/Oven。</td>
+            <td>OmniGuide 要证明“任意 guidance source 都能变成 3D 能量场”，所以任务按 guidance 类型分组，而不是按单一 benchmark 分组。</td>
+            <td>碰撞任务测 repeller；语义任务测 VLM pointing → 3D target attraction；人类模仿测 trajectory attraction。仿真用 ground-truth depth/object pose 是为了隔离感知误差，专测 guidance 机制。</td>
+          </tr>
+          <tr>
+            <td><strong>LA4VLA</strong></td>
+            <td>数据构造：DROID 9,560 episodes → VLM 分段 56,899 候选 → 人工校验 33,116 段 LA-33K。评测：MetaWorld Easy/Medium/Hard/Very Hard，LIBERO Spatial/Object/Goal/Long，真机 xArm 三任务：按 4 个按钮之一、把书插入 3 个书架位之一、把饮料放到 9 宫格之一。</td>
+            <td>它要证明“去视觉的 language-action pretraining 能减少视觉捷径，强化语言条件动作先验”。因此训练数据来自真实 DROID 演示，但预训练时故意去掉视觉。</td>
+            <td>MetaWorld 空间大、连续控制多，能放大动作先验收益；LIBERO Spatial 直接测方向/空间指令；真机三任务保持初始场景近似相同，只靠语言区分目标，专门测语言条件能力。</td>
+          </tr>
+          <tr>
+            <td><strong>LAP</strong></td>
+            <td>训练：OXE + MolmoAct，多数来自 DROID。评测：LIBERO fine-tuning，seen DROID setup，三个 unseen embodiments：Custom Franka、YAM、Kinova；真机任务包括 Pick and Place、Sort、Tissue、Put Towel、Pour，微调任务包括 Hang Tape on Rack、Fold Towel and Place in Basket。</td>
+            <td>LAP 的 claim 是 language-action 表示带来 zero-shot cross-embodiment transfer，所以必须用未见机器人本体验证，而不能只用同一本体仿真。</td>
+            <td>LIBERO 测标准 VLA fine-tuning；DROID/Custom/YAM/Kinova 测本体、相机、夹爪和动力学变化下，语言动作表示是否比 FAST/action token 更稳。</td>
+          </tr>
+          <tr>
+            <td><strong>VERA</strong></td>
+            <td>DROID 39,816 episodes 做 Panda-Real video post-training；PushT-Sim、MimicGen Panda-Sim、Allegro-Sim、Panda-Real、Allegro-Real 60-217 episodes。</td>
+            <td>VERA 要证明 action-free video planner + J-IDM 能跨 DoF 和机器人工作，所以从 2-DoF PushT 到 7-DoF Panda 再到 16-DoF Allegro。</td>
+            <td>PushT/MimicGen/Allegro-Sim 测 J-IDM 随 DoF 扩展和 action reconstruction；Panda-Real 的 basic/occlusion/location/semantic 任务测视频模型的语义/空间想象能否通过 J-IDM 落成动作。</td>
+          </tr>
+          <tr>
+            <td><strong>DynaGuide</strong></td>
+            <td>CALVIN play data / benchmark；真机 ARX cup preference pick-place。</td>
+            <td>DynaGuide 要证明独立 dynamics model 可以在扩散去噪中引导预训练策略，因此选择有现成 play data、桌面物体和铰接件的 CALVIN 训练 latent dynamics。</td>
+            <td>CALVIN 测 drawer、switch、button、cabinet、彩色方块等目标条件和低质量目标鲁棒；真机杯子偏好任务测 preference guidance 是否能改变已有策略行为。</td>
+          </tr>
+          <tr>
+            <td><strong>G0.5</strong></td>
+            <td>评测：LIBERO、RoboTwin 2.0、SimplerEnv-Bridge、BEHAVIOR-1K、DROID zero-shot、PP Bench、R1-Lite/R1-Pro 真机微调。</td>
+            <td>G0.5 是 generalist VLA，不是单一 OOD 修复模块，所以需要广覆盖：仿真、真机、移动操作、长程家务、零样本和微调。</td>
+            <td>BEHAVIOR-1K 测长程家务组合；PP Bench 和 Air Fryer/Cook Bacon 未见任务测 CoT/prompt 是否能 test-time steer 行为；R1 真机任务测同等微调预算下是否优于 π0.5。</td>
+          </tr>
+          <tr>
+            <td><strong>DWYS / SEAL</strong></td>
+            <td>LIBERO-10-R、LIBERO-100-Basket-R、LIBERO-100-R；OOD 变体 Lang-Rephrase、Lang-Object-Property、Visual-Scene、Visual-Viewpoint；组合任务 10-Compose / 100-Basket-Compose / 100-Compose。</td>
+            <td>它要证明 reasoning-action alignment verification 能减少“说一套做一套”，所以需要 reasoning 标注数据和可并行 forward rollout 的仿真 oracle。</td>
+            <td>ID 测 plan 是否正确、动作是否忠实；语言/视觉 OOD 变体测验证器能否从候选动作里挑出与文字 plan 对齐的一条。注意：这是验证/重采样路线，不是新物体/方位的主生成解法。</td>
           </tr>
         </tbody>
       </table>
