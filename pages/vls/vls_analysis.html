@@ -26,6 +26,14 @@ figure{margin:20px 0;text-align:center}
 figure img,figure video{max-width:100%;border:1px solid var(--border);border-radius:8px;background:#fff}
 figure video{background:#000}
 figcaption{color:var(--dim);font-size:0.85em;margin-top:8px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin:18px 0}
+.vgrid figure{margin:0}
+.vgrid video{width:100%;border-radius:8px;border:3px solid var(--border)}
+.vsucc video{border-color:var(--green)}
+.vfail video{border-color:var(--red)}
+.vbadge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:0.78em;font-weight:600;margin-right:4px}
+.bsucc{background:rgba(52,211,153,0.18);color:var(--green)}
+.bfail{background:rgba(248,113,113,0.18);color:var(--red)}
 table{width:100%;border-collapse:collapse;margin:16px 0;font-size:0.9em}
 th,td{border:1px solid var(--border);padding:8px 12px;text-align:left}
 th{background:var(--surface2);color:var(--accent)}
@@ -232,23 +240,36 @@ pick up the black bowl <b>[between the plate and ramekin / from table center / i
 <figure><img src="assets/figI_task_vs_swap.png" alt="图 I:同 suite 下 Task 比 Swap 更难" loading="lazy"/><figcaption>图 I:同 suite 下 Task 比 Swap 更难</figcaption></figure>
 <div class="callout c-blue">object_task:VLS 20.5% &gt; baseline 12.0%(方向正确,但 &lt; 论文 41%,因关 stage recognition)。10_task 仅 0.5%,再证长程边界。</div>
 
-<h3>5.4 📹 引导前后轨迹视频(可播放)</h3>
-<div class="grid2">
-<figure><video controls preload="metadata" src="assets/swap_baseline_ep1_FAIL.mp4"></video><figcaption>Swap baseline:抓向旧位置,失败</figcaption></figure>
-<figure><video controls preload="metadata" src="assets/swap_vls_ep1_SUCCESS.mp4"></video><figcaption>Swap VLS:被 reward 拉向新位置,成功</figcaption></figure>
-</div>
-<figure><img src="assets/figG_video_frames_comparison.png" alt="图 G:Swap OOD 关键帧对比" loading="lazy"/><figcaption>图 G:Swap OOD 关键帧对比</figcaption></figure>
-<div class="grid2">
-<figure><video controls preload="metadata" src="assets/object_episode_106_SUCCESS.mp4"></video><figcaption>Object-Task VLS:成功完成</figcaption></figure>
-<figure><video controls preload="metadata" src="assets/long10_episode_1_FAIL.mp4"></video><figcaption>LIBERO10-Task VLS:长程任务仍失败(能力边界)</figcaption></figure>
-</div>
+<h3>6.4 📹 实验结果视频画廊(成功 / 失败,真实 rollout)</h3>
+<p>每个 rollout 评测时都会存一段视频,开发机已累积近千段。下面按 suite 分组展示<b>成功(绿框)与失败(红框)</b>的真实案例。绿框=VLS 完成任务,红框=超时/抓错失败。</p>
 
-<h3>5.5 📹 4 suite 视频墙</h3>
-<p>每个 rollout 都会存一个视频,开发机已累积近千个。下面是按 suite 选的代表 rollout。</p>
+<h4>① Position(swap)扰动:baseline vs VLS 同任务对比</h4>
+<p>最直观的证据:同一个被挪了位置的任务,baseline 抓向旧位置失败,VLS 被 VLM reward 拉向新位置成功。</p>
+<div class="vgrid"><figure class="vfail"><video controls preload="none" src="assets/swap_baseline_ep1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> Baseline:抓向 swap 前的旧位置,超时</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/swap_vls_ep1_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS:被 reward 拉向新位置,完成</figcaption></figure></div>
+<figure><img src="assets/figG_video_frames_comparison.png" alt="图 G:Swap OOD 关键帧对比(逐帧看动作差异)" loading="lazy"/><figcaption>图 G:Swap OOD 关键帧对比(逐帧看动作差异)</figcaption></figure>
+
+<h4>② Object-Task 扰动(单阶段抓放,VLS 最擅长)</h4>
+<p>VLS 20.5% &gt; baseline 12.0%。下面 3 成功 + 3 失败,可见 VLS 救回了不少 case,但仍有失败。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/object_episode_10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep10:成功抓取放篮</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_106_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep106:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/object_episode_119_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep119:成功</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep100:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/object_episode_101_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep101:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/task_object_baseline_ep10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> Baseline ep10:失败(对照)</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/task_object_vls_ep10_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep10:成功(同任务对照)</figcaption></figure></div>
+
+<h4>③ Spatial-Task 扰动</h4>
+<p>VLS 25.0%,4 个 suite 里 task 扰动表现最好的。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_101_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep101:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_104_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep104:成功</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/spatial_episode_107_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep107:成功</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/spatial_episode_100_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep100:失败</figcaption></figure></div>
+
+<h4>④ Goal-Task 扰动(含多阶段任务,成功率低)</h4>
+<p>VLS 仅 13%。goal 含"开抽屉"等多阶段任务,缺 stage recognition 时 VLS 易卡在错误阶段,成功案例稀少。</p>
+<div class="vgrid"><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_52_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep52:成功(少数)</figcaption></figure><figure class="vsucc"><video controls preload="none" src="assets/goal_episode_89_SUCCESS.mp4"></video><figcaption><span class="vbadge bsucc">✓ 成功</span> VLS ep89:成功(少数)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/goal_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep11:失败</figcaption></figure></div>
+
+<h4>⑤ LIBERO10 / Long-Task 扰动(能力边界,全失败)</h4>
+<p>VLS 仅 0.5%,几乎无成功案例。长程任务(多步骤串联)是 VLS 的能力边界,下面 3 段全是失败。</p>
+<div class="vgrid"><figure class="vfail"><video controls preload="none" src="assets/long10_episode_1_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep1:失败(长程)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_10_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep10:失败(长程)</figcaption></figure><figure class="vfail"><video controls preload="none" src="assets/long10_episode_11_FAIL.mp4"></video><figcaption><span class="vbadge bfail">✗ 失败</span> VLS ep11:失败(长程)</figcaption></figure></div>
+
+<h3>6.5 📹 4 suite 视频墙(关键帧汇总)</h3>
+<p>把代表 rollout 抽帧拼成静态对比图,一屏看全 VLS 在 4 个 suite 的行为差异。</p>
 <figure><img src="assets/figL_suite_video_wall.png" alt="图 L:VLS 在 4 个 Task suite 的行为 —— object/spatial/goal 成功,LIBERO10 仍失败" loading="lazy"/><figcaption>图 L:VLS 在 4 个 Task suite 的行为 —— object/spatial/goal 成功,LIBERO10 仍失败</figcaption></figure>
 <figure><img src="assets/figM_object_consistency.png" alt="图 M:Object-Task VLS 多个成功 rollout 行为一致" loading="lazy"/><figcaption>图 M:Object-Task VLS 多个成功 rollout 行为一致</figcaption></figure>
 
-<h3>5.6 与论文对齐</h3>
+<h3>6.6 与论文对齐</h3>
 <figure><img src="assets/fig2_paper_tableI.png" alt="图 2:论文 Table I 基准(π-0.5 LeRobot)" loading="lazy"/><figcaption>图 2:论文 Table I 基准(π-0.5 LeRobot)</figcaption></figure>
 <figure><img src="assets/fig3_local_vs_paper.png" alt="图 3:本机复现 vs 论文趋势一致" loading="lazy"/><figcaption>图 3:本机复现 vs 论文趋势一致</figcaption></figure>
 <figure><img src="assets/figF_dev_vs_paper.png" alt="图 F:开发机全量 vs 论文" loading="lazy"/><figcaption>图 F:开发机全量 vs 论文</figcaption></figure>
