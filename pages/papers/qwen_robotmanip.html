@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qwen-RobotManip — 对齐释放规模化</title>
+<style>
+:root{--bg:#0f1117;--surface:#1a1d2e;--surface2:#252940;--border:#2d3348;--text:#e2e8f0;--dim:#94a3b8;--accent:#60a5fa;--accent2:#a78bfa;--green:#34d399;--orange:#fb923c;--red:#f87171;--pink:#f472b6}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+.container{max-width:1080px;margin:0 auto;padding:20px}
+header{text-align:center;padding:36px 20px 16px}
+h1{font-size:2em;background:linear-gradient(135deg,var(--accent2),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.sub{color:var(--dim);margin-top:8px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:20px 0;border-bottom:1px solid var(--border)}
+.tab{padding:9px 15px;cursor:pointer;border-radius:8px 8px 0 0;color:var(--dim);border:1px solid transparent;border-bottom:none;font-size:0.85em}
+.tab:hover{color:var(--text);background:var(--surface)}
+.tab.active{background:var(--surface);color:var(--accent);border-color:var(--border);font-weight:600}
+.panel{display:none;animation:fade .3s}.panel.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+h2{color:var(--accent);margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+h3{color:var(--accent2);margin:18px 0 10px}h4{color:var(--green);margin:14px 0 6px}
+p{margin:8px 0;color:var(--dim)}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin:14px 0}
+pre{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;overflow-x:auto;font-size:0.79em;line-height:1.5}
+code{color:var(--green)}
+.eq{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;font-family:'Cambria Math',serif;font-size:1.02em;margin:10px 0;color:var(--text)}
+.note{background:rgba(96,165,250,0.08);border-left:3px solid var(--accent);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.key{background:rgba(52,211,153,0.08);border-left:3px solid var(--green);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+.warn{background:rgba(251,146,60,0.08);border-left:3px solid var(--orange);padding:10px 14px;margin:10px 0;border-radius:0 8px 8px 0}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+th,td{padding:8px 11px;text-align:left;border-bottom:1px solid var(--border);font-size:0.84em;vertical-align:top}
+th{color:var(--accent);background:var(--surface2)}
+.hl{color:var(--green);font-weight:600}
+ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
+</style>
+</head>
+<body>
+<header>
+<h1>Qwen-RobotManip — 对齐释放规模化</h1>
+<p class="sub">Alignment Unlocks Scale for Robotic Manipulation Foundation Models · Qwen Team 2026</p>
+</header>
+<div class="container">
+<div class="tabs">
+<div class="tab active" data-tab="overview">速览</div>
+<div class="tab" data-tab="thesis">核心命题</div>
+<div class="tab" data-tab="align">三重对齐</div>
+<div class="tab" data-tab="data">数据引擎</div>
+<div class="tab" data-tab="arch">架构</div>
+<div class="tab" data-tab="ood">OOD评测</div>
+<div class="tab" data-tab="takeaway">评价与启发</div>
+<div class="tab" data-tab="quiz">自测</div>
+</div>
+
+
+<div class="panel active" id="panel-overview">
+<div class="section">
+<h2>一句话</h2>
+<p><b>先对齐，再扩规模。</b> 机器人操作数据天然异构(不同本体/坐标系/动作空间/频率/相机)，直接堆数据只会互相冲突。Qwen-RobotManip 提出在<b>表征、运动、行为三个维度统一对齐</b>后，异构大规模数据才能相互增强而非干扰——从而像语言/多模态基础模型那样吃下规模、获得真正的 OOD 泛化。</p>
+</div>
+<div class="note"><b>本页可靠性</b>：整理自 Qwen-RobotManip 技术报告(Qwen Team 2026)及本地深度分析。架构参数、数据规模、实验数字来自报告；解读部分为学习者视角。原文：<a href="https://qwen.ai/blog?id=qwen-robotmanip" target="_blank" style="color:var(--accent)">qwen.ai/blog</a> · <a href="https://github.com/QwenLM/Qwen-RobotManip" target="_blank" style="color:var(--accent)">代码(开源)</a>。</div>
+<div class="section">
+<h2>速览卡片</h2>
+<table>
+<tr><th>项</th><th>内容</th></tr>
+<tr><td>团队</td><td>Qwen Team(阿里)，团队署名</td></tr>
+<tr><td>基座</td><td>Qwen3.5-4B VLM + flow-matching DiT 动作专家(<b>非</b>基于 π0.5)</td></tr>
+<tr><td>数据规模</td><td>~38,100 小时操作数据 + 28M VL 样本，<b>全部开源数据，无私有采集</b></td></tr>
+<tr><td>核心创新</td><td>三重对齐(表征/运动/行为) + Human-to-Robot 合成 + OOD-first 评测</td></tr>
+<tr><td>代表结果</td><td>LIBERO-Plus 91.4 vs π0.5 84.4；RoboTwin-C2R Hard 69.4 vs π0.5 47.9；真机 ALOHA OOD 87.5% vs π0.5 37.5% / StarVLA 0%</td></tr>
+<tr><td>新提 benchmark</td><td>RoboTwin-IF(指令跟随)、RoboTwin-XE(零样本跨本体)</td></tr>
+<tr><td>开源</td><td>是</td></tr>
+</table>
+</div>
+</div>
+
+<div class="panel" id="panel-thesis">
+<div class="section">
+<h2>核心命题：对齐是规模化的前提</h2>
+<p>读完你能回答：为什么机器人数据不能像文本那样"堆就行"？为什么标准 benchmark 高分不算数？</p>
+<div class="key"><b>命题</b>：语言/多模态模型能从 web-scale 异构数据获益，是因为不同数据源能在统一 token/语义空间中对齐。机器人操作数据却同时存在本体、坐标系、动作空间、控制频率、相机布局、任务语义六重差异——<b>不先对齐，直接堆数据只会学到相互冲突的动作约定，规模变大反而干扰(interference)而非增益。</b></div>
+</div>
+<div class="section">
+<h2>为什么标准 benchmark 骗人</h2>
+<div class="warn">论文 Figure 4 的关键发现：在标准 LIBERO/RoboTwin(训练测试共享相近视觉布局和任务结构)上，<b>从零训练的模型也能追平甚至超过大规模预训练模型</b>——说明标准 benchmark 高分很大程度来自<b>分布内模式匹配(记忆)</b>，无法衡量预训练质量和真泛化。</div>
+<table>
+<tr><th>模型/设置</th><th>ID 表现</th><th>OOD 表现</th><th>含义</th></tr>
+<tr><td>StarVLA</td><td>RoboTwin Easy 85.7%</td><td>C2R Hard <b>10.6%</b></td><td>标准高分≠OOD泛化</td></tr>
+<tr><td>π0.5</td><td>ID 强</td><td>OOD 优于无预训练模型</td><td>预训练在OOD显价值</td></tr>
+<tr><td>Qwen-RobotManip</td><td>ID 强(LIBERO 99.2)</td><td>OOD 更强(C2R Hard 69.4)</td><td>对齐+规模化放大OOD能力</td></tr>
+</table>
+<p class="hl">结论：OOD-first evaluation 才应该是 foundation model 的主评测协议。</p>
+</div>
+</div>
+
+
+<div class="panel" id="panel-align">
+<div class="section">
+<h2>三重对齐(全文核心)</h2>
+<p>读完你能回答：representation/motion/behavior 三层对齐分别解决什么、怎么做。</p>
+<table>
+<tr><th>对齐层</th><th>解决的异构问题</th><th>具体做法</th></tr>
+<tr><td><b>① 表征对齐</b>(representation)</td><td>不同机器人关节数/动作字段拼接混乱</td><td><b>80 维 canonical state-action 模板</b>，语义固定槽位</td></tr>
+<tr><td><b>② 运动对齐</b>(motion)</td><td>EEF 位姿记在不同 base/camera frame，数值不可比</td><td><b>camera-frame delta EEF</b> + CaPE 相机位置编码</td></tr>
+<tr><td><b>③ 行为对齐</b>(behavior)</td><td>不同机器人执行风格/动力学不同</td><td><b>structured embodiment prompt</b> + in-context policy adaptation</td></tr>
+</table>
+</div>
+<div class="section">
+<h3>① 80 维 canonical 状态/动作模板</h3>
+<pre><code>80 维 = 2 × 29维 per-arm block + 22 维 reserved
+
+每个 29 维 arm block:
+  7 维  joint position(关节位置)
+  9 维  EEF pose(末端位姿)
+  1 维  gripper state(夹爪)
+  12 维 dexterous hand joints(灵巧手)
+
+单臂 → 填一个 arm block; 双臂 → 填两个; 灵巧手 → 填 hand joints
+不存在的维度置0，用 binary mask 从 loss 中排除
+reserved 22 维 → 移动底盘等扩展自由度</code></pre>
+<div class="key">关键：不同机器人不再"任意拼接"动作字段，而是在<b>语义固定的位置</b>提供监督。7-DoF 单臂的关节永远填在同一批槽位，跨数据集才能一致。</div>
+</div>
+<div class="section">
+<h3>② camera-frame delta EEF(运动对齐)</h3>
+<p>光有 80 维模板还不够——不同数据集的 EEF pose 可能在不同坐标系记录。解法：把 EEF action 表达为<b>相机坐标系下的 delta pose</b>。</p>
+<div class="key">直觉：<b>如果两个机器人在图像里做相同的视觉运动，它们的 camera-frame delta action 数值也应该相近。</b> 这让"相同物理运动"在数值动作空间中真正一致，是跨本体/跨相机的关键。代价：训练和推理都需要相机内外参，通过 CaPE(Camera Positional Encoding)注入 DiT cross-attention。</div>
+<p>效果：RoboTwin-XE 零样本跨本体，camera-frame EEF 平均 23.9% vs joint control 14.5%；joint 空间几乎不能跨本体(&lt;5%)。</p>
+</div>
+<div class="section">
+<h3>③ 行为对齐：prompt + in-context adaptation</h3>
+<ul>
+<li><b>structured embodiment prompt</b>：含 embodiment/instruction/speed/fps/camera view 等字段，让模型知道"当前是哪种机器人、任务是什么、执行节奏如何"。训练时随机丢弃 embodiment/speed/fps 15% 提高鲁棒性。</li>
+<li><b>in-context policy adaptation</b>：把同 episode 的历史 observation-state-action chunk 序列化成 context token 输入 VLM，模型<b>无需参数更新</b>就能从历史识别当前机器人的动力学和执行风格。</li>
+<li><b>stochastic context sampling</b>：从 episode 随机位置抽历史 chunk(而非总给最近的)，避免模型直接复制最近 action。</li>
+</ul>
+</div>
+</div>
+
+<div class="panel" id="panel-data">
+<div class="section">
+<h2>数据引擎：38,100 小时怎么来的</h2>
+<p>读完你能回答：数据从哪来、human-to-robot 怎么合成、为什么要清洗。</p>
+<table>
+<tr><th>数据类型</th><th>来源</th><th>规模</th></tr>
+<tr><td>开源机器人数据</td><td>OXE, AgiBotWorld-Beta, RoboMIND(2.0), Galaxea, RoboCOIN, DROID, RH20T, RDT-1B, InternData-A1</td><td>11,000+ 小时</td></tr>
+<tr><td>第一视角人手视频</td><td>EgoDex, VITRA, EgoVerse</td><td>1,933 小时</td></tr>
+<tr><td><b>H2R 合成机器人演示</b></td><td>人手视频渲染到 15 种机器人形态</td><td>24,808 小时</td></tr>
+<tr><td>VL 数据</td><td>VQA/grounding/OCR/ECoT/ego-video/2D trajectory</td><td>28M 样本</td></tr>
+</table>
+<p class="hl">全部开源数据，无任何私有采集——却达到 ~38,100 小时预训练语料。</p>
+</div>
+<div class="section">
+<h2>Human-to-Robot(H2R)合成管线</h2>
+<pre><code>动作对齐:
+  MANO 手部关键点 → 构造虚拟手指
+  拇指与index/middle加权中点 → gripper 位置
+  两者距离 → gripper width
+  抓取轴+腕到指尖方向 → gripper orientation
+  滤波: 位置/宽度 Savitzky-Golay, 旋转 Gaussian-weighted SLERP
+
+视觉对齐:
+  SAM3 分割手臂 → ProPainter inpaint 删人手
+  → 搜索机器人 base placement → MuJoCo IK 跟踪重定向轨迹
+  → Depth Anything v3 场景深度 + 机器人渲染深度 → 遮挡合成
+
+结果: 每段人手视频 → 多个机器人形态下的视觉-动作演示</code></pre>
+</div>
+<div class="section">
+<h2>数据清洗(必须正面处理)</h2>
+<p>状态/动作五步过滤：突变检测、state-action 趋势对齐、极值过滤、joint-EEF FK 一致性、base frame/EEF orientation 对齐。视频/语言三类检查：指令一致性、video-state 一致性、视频质量。</p>
+<div class="warn"><b>惊人发现</b>：RoboMIND UR-type 数据中 <b>81% episodes 未通过 state-action 趋势对齐检查</b>。说明大规模机器人数据的质量问题不是边缘小事，而是训练基础模型必须正面处理的核心问题——<b>没有清洗，规模会变成噪声甚至冲突。</b></div>
+</div>
+</div>
+
+<div class="panel" id="panel-arch">
+<div class="section">
+<h2>模型架构</h2>
+<pre><code>多视角图像 + 结构化prompt + 历史context
+        │
+        ▼
+Qwen3.5-4B VLM backbone
+        │  last-layer hidden states, D_vlm=2560
+        ▼
+Flow-Matching DiT Action Expert
+        │  N=10 blocks, D_act=768, 12 heads
+        │  state token + noisy action + query/context tokens
+        │  偶数block attend视觉token, 奇数block attend语言token
+        ▼
+80维 canonical action chunk (binary mask只监督有效维度)
+        │
+        ▼ 推理: 4步 Euler flow-matching + RTC异步执行</code></pre>
+</div>
+<div class="section">
+<h2>关键实现</h2>
+<table>
+<tr><th>组件</th><th>配置</th></tr>
+<tr><td>VLM</td><td>Qwen3.5-4B，last-layer hidden D=2560</td></tr>
+<tr><td>DiT 动作专家</td><td>10 blocks，hidden 768，12 heads，偶数层看视觉/奇数层看语言</td></tr>
+<tr><td>Flow Matching</td><td>t~Beta(1,1.5)，x_t=(1-t)ε+t·a，预测速度 a-ε，推理 4 Euler 步</td></tr>
+<tr><td>协同训练</td><td>9:1 robot/VL 数据，L=L_FM+0.1·L_VLM，每 chunk 重复采样 8 次</td></tr>
+<tr><td>架构选择</td><td>last-layer cross-attention(消融胜过 layer-wise，且成本更低)</td></tr>
+</table>
+<div class="note">对比 StarVLA-PI 的"层级 cross-attn"：Qwen-RobotManip 消融发现<b>last-layer cross-attention</b>(只用最后一层)在 LIBERO-Plus 上 87.5 反而高于 layer-wise 86.4，且计算更省，故选它。说明"取所有层"不一定更好，要看任务和成本。</div>
+</div>
+</div>
+
+<div class="panel" id="panel-ood">
+<div class="section">
+<h2>OOD-first 评测体系</h2>
+<p>读完你能回答：论文用哪些 OOD benchmark、各测什么、结果如何。</p>
+<table>
+<tr><th>Benchmark</th><th>测什么 OOD</th><th>Qwen-RobotManip vs π0.5</th></tr>
+<tr><td><b>LIBERO-Plus</b></td><td>7维扰动(视角/初态/光照/背景等)</td><td>91.4 vs 84.4(π0 仅 53.6)</td></tr>
+<tr><td><b>RoboTwin-C2R</b>(Clean2Rand)</td><td>干净训练→随机化测试(视觉域OOD)</td><td>Hard 69.4 vs 47.9(StarVLA 崩到 10.6)</td></tr>
+<tr><td><b>RoboTwin-IF</b>(新提出)</td><td>指令跟随:同场景不同语言不同动作</td><td>72.2 vs 49.6(测语言退化)</td></tr>
+<tr><td><b>RoboTwin-XE</b>(新提出)</td><td>零样本跨本体迁移</td><td>camera-frame EEF 23.9% vs joint 14.5%</td></tr>
+<tr><td><b>RoboCasa365</b></td><td>厨房长程组合(Composite-Unseen)</td><td>Total 35.9 vs 16.9；组合未见 14.9 vs RLDX-1 5.4</td></tr>
+<tr><td><b>EBench</b></td><td>Isaac Sim 双臂移动平台</td><td>Overall 45.6 vs 27.1</td></tr>
+</table>
+</div>
+<div class="section">
+<h2>真机结果(最有说服力)</h2>
+<table>
+<tr><th>平台/设置</th><th>Qwen-RobotManip</th><th>π0.5</th><th>StarVLA</th></tr>
+<tr><td>CobotMagic ALOHA ID</td><td class="hl">88.6%</td><td>42.9%</td><td>20.0%</td></tr>
+<tr><td>CobotMagic ALOHA OOD</td><td class="hl">87.5%</td><td>37.5%</td><td>0.0%</td></tr>
+<tr><td>RoboChallenge Table30 Generalist</td><td class="hl">45 / 59.83</td><td>17.67 / 31.27</td><td>—</td></tr>
+</table>
+<div class="key">真机 OOD 上 Qwen-RobotManip 87.5% 而 π0.5 只有 37.5%、StarVLA 直接 0%——ID 上差距没这么大，<b>OOD 才把预训练+对齐的价值拉开</b>。RoboChallenge 以 20% 相对提升排名第一。</div>
+</div>
+<div class="section">
+<h2>关键消融</h2>
+<ul>
+<li><b>动作对齐</b>：只有统一表征+camera-frame EEF 后，跨本体数据规模才呈现稳定 scaling law</li>
+<li><b>VL co-training</b>：去掉后 LIBERO 只降 0.9，但 RoboTwin-C2R 降 6.7/8.2、IF 降 7.0——<b>越 OOD 越依赖 VL 数据保语义</b></li>
+<li><b>H2R 数据</b>：robot-only 54.7 → +ego 55.0 → +h2r 58.7(动作+视觉对齐才释放收益)</li>
+<li><b>in-context</b>：加 context 后需把去噪步从 4 提到 10 才不抖动，达 70.9</li>
+</ul>
+</div>
+</div>
+
+<div class="panel" id="panel-takeaway">
+<div class="section">
+<h2>优点</h2>
+<ol>
+<li>问题定位精准：不追 LIBERO 高分，而是揭示标准 benchmark 无法衡量预训练质量</li>
+<li>对齐框架系统完整：表征/运动/行为三层贯穿数据、模型、训练</li>
+<li>数据工程规模大且细：38,100h + 24,808h H2R + 28M VL + 五阶段清洗</li>
+<li>实验覆盖极广，与 π0/π0.5 对比充分，开源</li>
+</ol>
+</div>
+<div class="section">
+<h2>局限</h2>
+<ul>
+<li>完整预训练几乎不可复现(数据清洗/H2R渲染/15平台IK/38100h)</li>
+<li><b>无触觉/力输入</b>：精密接触仍不稳(yellow-disc-insertion 2/5，Insert Screw 0/10)</li>
+<li>H2R 合成依赖多个外部模型(SAM3/ProPainter/Depth Anything/IK)，误差传播分析不足</li>
+<li>真机任务 trial 数偏少(5或10)，置信区间宽</li>
+</ul>
+</div>
+<div class="section">
+<h2>可借鉴的思想</h2>
+<div class="key">
+<b>① OOD-first 评测</b>：只报分布内成功率容易被质疑是记忆，应主动设计 OOD 扰动(物体位姿/光照/背景/初态)。<br><br>
+<b>② camera-frame delta EEF</b>：把动作(乃至触觉)表达在相机/接触局部坐标系下，是跨本体/跨相机的关键。<br><br>
+<b>③ 先对齐再规模化</b>：触觉数据同样异构(传感器/坐标/量纲)，可仿照 80 维 canonical template 构建统一触觉 token 模板。<br><br>
+<b>④ in-context adaptation</b>：把历史接触/力曲线作 context，让策略在 episode 内识别材料/摩擦/装配偏差。
+</div>
+</div>
+<div class="section">
+<h2>一句话总结</h2>
+<p class="hl">Qwen-RobotManip = Qwen3.5-4B + flow-matching DiT + 三重对齐(80维canonical/camera-frame EEF/structured prompt) + 38,100h 全开源数据(含24,808h H2R合成) + OOD-first 评测，用"先对齐再扩规模"释放异构机器人数据的规模化能力。</p>
+</div>
+</div>
+
+<div class="panel" id="panel-quiz">
+<div class="section">
+<h2>自测：6 题检验理解</h2>
+<div id="quiz"></div>
+<div id="score" style="margin-top:16px;padding:14px;border-radius:8px;text-align:center;font-size:1.1em;display:none"></div>
+<button onclick="gradeQuiz()" style="margin-top:14px;padding:9px 22px;background:var(--accent);color:#0f1117;border:none;border-radius:8px;font-weight:600;cursor:pointer">提交答案</button>
+</div>
+</div>
+
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(t=>{t.onclick=()=>{
+document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+t.classList.add('active');document.getElementById('panel-'+t.dataset.tab).classList.add('active');window.scrollTo(0,0);};});
+const QUIZ=[
+{q:"Qwen-RobotManip 的核心命题是什么？",o:["更大的模型","先对齐再扩规模——异构数据必须先统一对齐才能规模化增益","新的强化学习","更多真机数据"],a:1,e:"机器人数据存在六重异构,不先对齐直接堆数据只会互相冲突(干扰),对齐是规模化的前提。"},
+{q:"为什么论文说标准 benchmark 高分不算数？",o:["benchmark有bug","从零训练模型也能在ID上追平预训练模型,说明高分来自分布内记忆","分数造假","太简单"],a:1,e:"Figure 4:标准LIBERO/RoboTwin训练测试共享布局,从零训练也能高分,无法衡量预训练质量,必须用OOD。"},
+{q:"80 维 canonical 模板解决什么问题？",o:["加速推理","表征对齐:不同机器人在语义固定槽位提供监督,不再任意拼接动作字段","压缩动作","增加维度"],a:1,e:"2×29维arm block+22 reserved,关节/EEF/夹爪/灵巧手各有固定槽位,不存在的维度mask掉,跨数据集才一致。"},
+{q:"camera-frame delta EEF 的直觉是什么？",o:["省显存","图像里做相同视觉运动的机器人,其camera-frame delta action数值也相近→跨本体一致","更精确","更快"],a:1,e:"把EEF动作表达在相机系下,让'相同物理运动'在数值动作空间中真正一致,是跨本体/跨相机的关键(XE上23.9% vs joint 14.5%)。"},
+{q:"Human-to-Robot 合成做了什么？",o:["生成文本","把人手第一视角视频渲染成15种机器人形态的演示(动作对齐+视觉对齐)","采集真机","标注数据"],a:1,e:"1933h人手视频经MANO重定向+SAM3/ProPainter删手+MuJoCo IK+深度合成,变成24808h机器人演示。"},
+{q:"RoboMIND UR 数据 81% 未通过检查说明什么？",o:["数据太少","大规模机器人数据的质量问题是核心,必须清洗,否则规模变噪声/冲突","UR机器人差","检查太严"],a:1,e:"说明数据清洗不是边缘小事而是训练基础模型必须正面处理的核心——没有对齐清洗,规模会变成干扰。"}
+];
+function renderQuiz(){const c=document.getElementById('quiz');QUIZ.forEach((it,i)=>{const d=document.createElement('div');d.style.cssText='margin:16px 0;padding:14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';let h='<h4 style="color:var(--text);margin-bottom:8px">Q'+(i+1)+'. '+it.q+'</h4>';it.o.forEach((o,j)=>{h+='<label style="display:block;padding:7px 11px;margin:4px 0;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer" id="opt-'+i+'-'+j+'"><input type="radio" name="q'+i+'" value="'+j+'" style="margin-right:7px">'+o+'</label>';});h+='<div id="exp-'+i+'" style="display:none;margin-top:7px;padding:9px;border-radius:6px;font-size:0.86em"></div>';d.innerHTML=h;c.appendChild(d);});}
+function gradeQuiz(){let s=0;QUIZ.forEach((it,i)=>{const sel=document.querySelector('input[name="q'+i+'"]:checked');const e=document.getElementById('exp-'+i);e.style.display='block';it.o.forEach((_,j)=>{const l=document.getElementById('opt-'+i+'-'+j);l.style.background='var(--surface)';l.style.borderColor='var(--border)';});document.getElementById('opt-'+i+'-'+it.a).style.borderColor='var(--green)';document.getElementById('opt-'+i+'-'+it.a).style.background='rgba(52,211,153,0.12)';if(sel){const v=parseInt(sel.value);if(v===it.a){s++;e.style.background='rgba(52,211,153,0.1)';e.style.border='1px solid var(--green)';e.innerHTML='✅ 正确！'+it.e;}else{document.getElementById('opt-'+i+'-'+v).style.borderColor='var(--red)';document.getElementById('opt-'+i+'-'+v).style.background='rgba(248,113,113,0.12)';e.style.background='rgba(248,113,113,0.1)';e.style.border='1px solid var(--red)';e.innerHTML='❌ 正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}}else{e.style.background='rgba(251,146,60,0.1)';e.style.border='1px solid var(--orange)';e.innerHTML='⚠️ 未作答。正确答案 '+String.fromCharCode(65+it.a)+'。'+it.e;}});const sc=document.getElementById('score');sc.style.display='block';let m=s>=6?'🏆 全对！':s>=4?'👍 不错':'📖 建议重读';sc.style.background='var(--surface2)';sc.style.border='2px solid var(--accent)';sc.style.color='var(--accent)';sc.innerHTML='得分：'+s+' / '+QUIZ.length+'　'+m;sc.scrollIntoView({behavior:'smooth',block:'center'});}
+renderQuiz();
+</script>
+<script src="../../assets/studyhub.js"></script>
+</body>
+</html>

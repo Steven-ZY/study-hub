@@ -65,6 +65,12 @@
       "target": "pages/vla-practice/vla_train_deploy.html",
       "title": "VLA 训练与部署实战",
       "category": "vla"
+    },
+    {
+      "source": "(built in-place)",
+      "target": "pages/papers/qwen_robotmanip.html",
+      "title": "Qwen-RobotManip 精读",
+      "category": "vla"
     }
   ]
 }
