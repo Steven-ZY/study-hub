@@ -40,6 +40,12 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 .t-code{background:rgba(52,211,153,0.15);color:var(--green)}
 .t-survey{background:rgba(251,146,60,0.15);color:var(--orange)}
 .t-note{background:rgba(244,114,182,0.15);color:var(--pink)}
+.hm-cell{padding:6px 2px;text-align:center;border-radius:4px;font-size:0.72em;font-weight:600;color:var(--text);cursor:default}
+.hm-100{background:rgba(52,211,153,0.35)}
+.hm-96{background:rgba(250,204,21,0.3);color:var(--text)}
+.hm-92{background:rgba(251,146,60,0.3)}
+.hm-88{background:rgba(251,146,60,0.45)}
+.hm-84{background:rgba(248,113,113,0.35)}
 </style>
 </head>
 <body>
@@ -55,6 +61,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="tab" data-tab="kvcache">KV Cache机制</div>
 <div class="tab" data-tab="train">训练·推理</div>
 <div class="tab" data-tab="exp">实验</div>
+<div class="tab" data-tab="repro">复现评测</div>
 <div class="tab" data-tab="code">代码印证</div>
 <div class="tab" data-tab="takeaway">评价与启发</div>
 <div class="tab" data-tab="quiz">自测</div>
@@ -76,6 +83,7 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <tr><td>三个变体</td><td>FLUX.2 ImageWAM(4B/9B，最强) · OmniGen2 ImageWAM · Ovis-U1 ImageWAM(1.1B DiT，最小)</td></tr>
 <tr><td>动作头</td><td>flow-matching Action Expert(DiT)，通过 joint attention 读取编辑分支 KV</td></tr>
 <tr><td>关键结果</td><td>RoboTwin2.0-Rand 93.56 · LIBERO 平均 98.4 · LIBERO-Plus 83.1(FLUX.2 4B) · 真机 84.5(π0 55.8)</td></tr>
+<tr><td><span class="hl">复现验证</span></td><td><span class="hl">LIBERO 4套件 97.9%(论文98.4%) · 8×H20 · 1000 episodes · 32分钟 · 0 crash</span></td></tr>
 <tr><td>效率</td><td>延迟 1081ms→263ms，FLOPs 63.65→9.72(约视频 WAM 的 1/6)</td></tr>
 <tr><td>是否需额外具身预训练</td><td><b>否</b>(P.T.=✗)，只在下游 benchmark 演示上训练即超越众多需预训练的 baseline</td></tr>
 </table>
@@ -260,6 +268,212 @@ ul,ol{margin:8px 0 8px 22px;color:var(--dim)}li{margin:4px 0}
 <div class="key"><b>门槛解读</b>：H20(96GB)是国内合规的大显存卡，8 卡即可复现。LIBERO 单实验约 18h(≈1 GPU·天量级×8)相对亲民；RoboTwin(5万+轨迹)要 5 天×8 卡是主要开销。推理侧一张 A6000(48GB)即可，延迟 263ms 满足实时控制。若只有 24-48GB 卡，可优先跑最小的 Ovis-U1(1.1B DiT)变体。</div>
 </div>
 </div>
+
+<div class="panel" id="panel-repro">
+<div class="section">
+<h2>复现评测：FLUX.2 4B × LIBERO 全量</h2>
+<p><span class="tag t-code">🟢实测复现</span> 在 ICL（8× NVIDIA H20, 96GB/卡）上，用官方 release checkpoint <code>ImageWAM-FLUX.2-4B-LIBERO</code> 完成全量 LIBERO 4 套件评测。<b>总成功率 97.9%，论文报告 98.4%，差异 0.5pp 在统计波动范围内，复现成功。</b></p>
+</div>
+
+<div class="section">
+<h2>评测结果总览</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:16px 0">
+<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
+<div style="font-size:2.2em;font-weight:700;color:var(--green)">97.9%</div>
+<div style="color:var(--dim);font-size:0.82em;margin-top:4px">Overall 成功率</div>
+<div style="color:var(--accent);font-size:0.75em">论文 98.4%</div>
+</div>
+<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
+<div style="font-size:2.2em;font-weight:700;color:var(--accent)">1000</div>
+<div style="color:var(--dim);font-size:0.82em;margin-top:4px">总 Episodes</div>
+<div style="color:var(--accent);font-size:0.75em">40 任务 × 25 trials</div>
+</div>
+<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
+<div style="font-size:2.2em;font-weight:700;color:var(--accent2)">32min</div>
+<div style="color:var(--dim);font-size:0.82em;margin-top:4px">总评测时间</div>
+<div style="color:var(--accent);font-size:0.75em">8×H20 满载</div>
+</div>
+<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center">
+<div style="font-size:2.2em;font-weight:700;color:var(--green)">0</div>
+<div style="color:var(--dim);font-size:0.82em;margin-top:4px">Crash / 系统失败</div>
+<div style="color:var(--accent);font-size:0.75em">全部正常退出</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<h2>套件级成功率（可视化对比论文）</h2>
+<div style="margin:20px 0">
+<div style="display:flex;align-items:center;margin:12px 0;gap:10px">
+<div style="width:110px;font-size:0.82em;text-align:right;color:var(--dim)">libero_spatial</div>
+<div style="flex:1;position:relative;height:28px;background:var(--surface2);border-radius:6px;overflow:hidden">
+<div style="position:absolute;height:100%;width:96.8%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;opacity:0.85"></div>
+<div style="position:absolute;left:98.4%;top:0;height:100%;width:2px;background:var(--orange);z-index:2" title="论文"></div>
+<span style="position:absolute;right:8px;top:4px;font-size:0.78em;font-weight:600;color:var(--text);z-index:3">96.8%</span>
+</div>
+</div>
+<div style="display:flex;align-items:center;margin:12px 0;gap:10px">
+<div style="width:110px;font-size:0.82em;text-align:right;color:var(--dim)">libero_object</div>
+<div style="flex:1;position:relative;height:28px;background:var(--surface2);border-radius:6px;overflow:hidden">
+<div style="position:absolute;height:100%;width:98.4%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;opacity:0.85"></div>
+<div style="position:absolute;left:98.4%;top:0;height:100%;width:2px;background:var(--orange);z-index:2" title="论文"></div>
+<span style="position:absolute;right:8px;top:4px;font-size:0.78em;font-weight:600;color:var(--text);z-index:3">98.4%</span>
+</div>
+</div>
+<div style="display:flex;align-items:center;margin:12px 0;gap:10px">
+<div style="width:110px;font-size:0.82em;text-align:right;color:var(--dim)">libero_goal</div>
+<div style="flex:1;position:relative;height:28px;background:var(--surface2);border-radius:6px;overflow:hidden">
+<div style="position:absolute;height:100%;width:98.0%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;opacity:0.85"></div>
+<div style="position:absolute;left:98.4%;top:0;height:100%;width:2px;background:var(--orange);z-index:2" title="论文"></div>
+<span style="position:absolute;right:8px;top:4px;font-size:0.78em;font-weight:600;color:var(--text);z-index:3">98.0%</span>
+</div>
+</div>
+<div style="display:flex;align-items:center;margin:12px 0;gap:10px">
+<div style="width:110px;font-size:0.82em;text-align:right;color:var(--dim)">libero_10</div>
+<div style="flex:1;position:relative;height:28px;background:var(--surface2);border-radius:6px;overflow:hidden">
+<div style="position:absolute;height:100%;width:98.4%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;opacity:0.85"></div>
+<div style="position:absolute;left:98.4%;top:0;height:100%;width:2px;background:var(--orange);z-index:2" title="论文"></div>
+<span style="position:absolute;right:8px;top:4px;font-size:0.78em;font-weight:600;color:var(--text);z-index:3">98.4%</span>
+</div>
+</div>
+<div style="display:flex;align-items:center;margin:12px 0;gap:10px">
+<div style="width:110px;font-size:0.82em;text-align:right;color:var(--dim);font-weight:600">Overall</div>
+<div style="flex:1;position:relative;height:32px;background:var(--surface2);border-radius:6px;overflow:hidden;border:1px solid var(--green)">
+<div style="position:absolute;height:100%;width:97.9%;background:linear-gradient(90deg,var(--green),var(--accent));border-radius:6px;opacity:0.9"></div>
+<div style="position:absolute;left:98.4%;top:0;height:100%;width:2px;background:var(--orange);z-index:2" title="论文 98.4%"></div>
+<span style="position:absolute;right:8px;top:6px;font-size:0.85em;font-weight:700;color:var(--text);z-index:3">97.9%</span>
+</div>
+</div>
+<p style="font-size:0.75em;color:var(--dim);text-align:right;margin-top:4px">条形 = 实测 | <span style="color:var(--orange)">橙线</span> = 论文报告（98.4% 平均）</p>
+</div>
+</div>
+
+<div class="section">
+<h2>逐任务热力图（40 任务 × 25 trials）</h2>
+<p style="font-size:0.8em;color:var(--dim);margin-bottom:12px">颜色深度 = 成功率（绿=100%，黄=92-96%，橙=84-88%）</p>
+<h4>libero_spatial（96.8%）</h4>
+<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:8px 0">
+<div class="hm-cell hm-100" title="task0: 100%">0</div>
+<div class="hm-cell hm-100" title="task1: 100%">1</div>
+<div class="hm-cell hm-96" title="task2: 96%">2</div>
+<div class="hm-cell hm-100" title="task3: 100%">3</div>
+<div class="hm-cell hm-88" title="task4: 88%">4</div>
+<div class="hm-cell hm-84" title="task5: 84%">5</div>
+<div class="hm-cell hm-100" title="task6: 100%">6</div>
+<div class="hm-cell hm-100" title="task7: 100%">7</div>
+<div class="hm-cell hm-100" title="task8: 100%">8</div>
+<div class="hm-cell hm-100" title="task9: 100%">9</div>
+</div>
+<h4>libero_object（98.4%）</h4>
+<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:8px 0">
+<div class="hm-cell hm-100" title="task0: 100%">0</div>
+<div class="hm-cell hm-100" title="task1: 100%">1</div>
+<div class="hm-cell hm-100" title="task2: 100%">2</div>
+<div class="hm-cell hm-92" title="task3: 92%">3</div>
+<div class="hm-cell hm-100" title="task4: 100%">4</div>
+<div class="hm-cell hm-100" title="task5: 100%">5</div>
+<div class="hm-cell hm-100" title="task6: 100%">6</div>
+<div class="hm-cell hm-96" title="task7: 96%">7</div>
+<div class="hm-cell hm-100" title="task8: 100%">8</div>
+<div class="hm-cell hm-96" title="task9: 96%">9</div>
+</div>
+<h4>libero_goal（98.0%）</h4>
+<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:8px 0">
+<div class="hm-cell hm-100" title="task0: 100%">0</div>
+<div class="hm-cell hm-96" title="task1: 96%">1</div>
+<div class="hm-cell hm-88" title="task2: 88%">2</div>
+<div class="hm-cell hm-100" title="task3: 100%">3</div>
+<div class="hm-cell hm-100" title="task4: 100%">4</div>
+<div class="hm-cell hm-100" title="task5: 100%">5</div>
+<div class="hm-cell hm-100" title="task6: 100%">6</div>
+<div class="hm-cell hm-100" title="task7: 100%">7</div>
+<div class="hm-cell hm-100" title="task8: 100%">8</div>
+<div class="hm-cell hm-96" title="task9: 96%">9</div>
+</div>
+<h4>libero_10（98.4%）</h4>
+<div style="display:grid;grid-template-columns:repeat(10,1fr);gap:3px;margin:8px 0">
+<div class="hm-cell hm-100" title="task0: 100%">0</div>
+<div class="hm-cell hm-100" title="task1: 100%">1</div>
+<div class="hm-cell hm-96" title="task2: 96%">2</div>
+<div class="hm-cell hm-96" title="task3: 96%">3</div>
+<div class="hm-cell hm-96" title="task4: 96%">4</div>
+<div class="hm-cell hm-100" title="task5: 100%">5</div>
+<div class="hm-cell hm-96" title="task6: 96%">6</div>
+<div class="hm-cell hm-100" title="task7: 100%">7</div>
+<div class="hm-cell hm-100" title="task8: 100%">8</div>
+<div class="hm-cell hm-100" title="task9: 100%">9</div>
+</div>
+<p style="font-size:0.75em;color:var(--dim);margin-top:10px">hover 查看具体数值。8 个非满分任务（共 21/1000 失败 trial），最低 84%（spatial task5: "pick up bowl on ramekin"——需精准定位堆叠物体）</p>
+</div>
+
+<div class="section">
+<h2>复现 vs 论文对比表</h2>
+<table>
+<tr><th>套件</th><th>论文报告</th><th>我们复现</th><th>差异</th><th>判定</th></tr>
+<tr><td>libero_spatial</td><td>—</td><td>96.8%</td><td>—</td><td>—</td></tr>
+<tr><td>libero_object</td><td>—</td><td>98.4%</td><td>—</td><td>—</td></tr>
+<tr><td>libero_goal</td><td>—</td><td>98.0%</td><td>—</td><td>—</td></tr>
+<tr><td>libero_10</td><td>—</td><td>98.4%</td><td>—</td><td>—</td></tr>
+<tr><td class="hl"><b>Overall</b></td><td class="hl"><b>98.4%</b></td><td class="hl"><b>97.9%</b></td><td><b>-0.5pp</b></td><td class="hl"><b>复现成功</b></td></tr>
+</table>
+<div class="note">论文仅报告 4 套件平均 98.4%，未逐套件列出。差异 0.5pp 在 25 trials/任务的 95% 置信区间（±2-3pp）之内。</div>
+</div>
+
+<div class="section">
+<h2>评测配置</h2>
+<table>
+<tr><th>项</th><th>配置</th></tr>
+<tr><td>硬件</td><td>8× NVIDIA H20 (96GB/卡), ICL 集群</td></tr>
+<tr><td>Checkpoint</td><td><code>ImageWAM-FLUX.2-4B-LIBERO</code> 官方 release (model.pt, 9.04GB)</td></tr>
+<tr><td>骨干</td><td>FLUX.2-klein-base-4B + FLUX.2-dev AE + Qwen3-4B</td></tr>
+<tr><td>评测规模</td><td>4 套件 × 10 任务 × 25 trials = 1000 episodes</td></tr>
+<tr><td>并行策略</td><td>max_tasks_per_gpu=4, chunk_size=1 → 32 并发 + 8 pending</td></tr>
+<tr><td>GPU 峰值显存</td><td>74.6 GB / 卡（4 任务共享时）</td></tr>
+<tr><td>渲染</td><td>MUJOCO_GL=osmesa (headless, 无显示器)</td></tr>
+<tr><td>action_horizon</td><td>16 步</td></tr>
+<tr><td>replan_steps</td><td>12 步</td></tr>
+<tr><td>总耗时</td><td>~32 分钟 (15:55 → 16:27)</td></tr>
+</table>
+</div>
+
+<div class="section">
+<h2>部署踩坑与经验</h2>
+<div class="warn"><b>踩坑 Top 3</b>（完整闭环见部署记录）</div>
+<table>
+<tr><th>#</th><th>问题</th><th>根因</th><th>解决</th></tr>
+<tr><td>1</td><td>uv sync 编译 mmcv-full 失败</td><td>只需 shared extra，uv sync 会锁全量（含 dim/mmcv）</td><td>改用 <code>uv pip install -e ".[shared]"</code></td></tr>
+<tr><td>2</td><td>LIBERO editable 安装后 import 失败</td><td>顶层 <code>libero/</code> 无 __init__.py → MAPPING 空</td><td>PYTHONPATH 注入 third_party/LIBERO</td></tr>
+<tr><td>3</td><td>推理时 No module named 'hydra'</td><td>worker 子进程用系统 python</td><td>.env.local 补 PYTHON_BIN 指向 .venv</td></tr>
+</table>
+<div class="key"><b>复现要点总结</b>：<br>
+① 只装 <code>[shared]</code> extra，不碰 dim/mmcv<br>
+② <code>.env.local</code> 必须设 PYTHON_BIN + LIBERO_WORKER_ENV_SOURCE<br>
+③ LIBERO 首次 import 有交互向导，headless 需 <code>echo N | python -c 'import libero.libero'</code> 预生成 config<br>
+④ 图像方向：<code>get_libero_image()</code> 的 <code>[::-1,::-1]</code> 180° 旋转是正确的（抽帧验证为正立场景）<br>
+⑤ HF gated 模型需 token + license 同时满足</div>
+</div>
+
+<div class="section">
+<h2>复现命令</h2>
+<pre><code># SSH 连接开发机
+ssh -p 443 root@10.82.96.110
+
+# 环境准备
+cd /robot/bionic-control-data/czy/projects/ImageWAM
+source .venv/bin/activate
+unset ALL_PROXY HTTP_PROXY HTTPS_PROXY http_proxy https_proxy all_proxy
+export MUJOCO_GL=osmesa PYOPENGL_PLATFORM=osmesa
+export PYTHONPATH=$PWD/third_party/LIBERO
+
+# 完整评测（默认参数 = 4套件 × 25 trials × 8 GPUs）
+bash scripts/flux2/run_eval_flux2_libero.sh
+
+# Smoke 快速验证（2 分钟）
+NUM_GPUS=2 TASK_SUITE_NAMES='[libero_spatial]' NUM_TRIALS=2 \
+  bash scripts/flux2/run_eval_flux2_libero.sh</code></pre>
+</div>
+</div>
+
 
 <div class="panel" id="panel-code">
 <div class="section">
